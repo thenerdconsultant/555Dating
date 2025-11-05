@@ -45,6 +45,8 @@ function defaultInterestsFor(gender) {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-555dating-secret';
 const COOKIE_NAME = 'jwt';
+const COOKIE_SAMESITE = process.env.COOKIE_SAMESITE || 'lax';
+const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true';
 const BOOST_MINUTES = Number(process.env.BOOST_MINUTES || 15);
 const BOOST_DURATION_MS = BOOST_MINUTES * 60 * 1000;
 const REWIND_COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -68,6 +70,22 @@ if (PUSH_ENABLED) {
 
 function signToken(user) {
   return jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
+}
+
+function setAuthCookie(res, token) {
+  res.cookie(COOKIE_NAME, token, {
+    httpOnly: true,
+    sameSite: COOKIE_SAMESITE,
+    secure: COOKIE_SECURE
+  });
+}
+
+function clearAuthCookie(res) {
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    sameSite: COOKIE_SAMESITE,
+    secure: COOKIE_SECURE
+  });
 }
 
 function authMiddleware(req, res, next) {
@@ -240,7 +258,7 @@ app.post('/api/auth/register', (req, res) => {
               VALUES (@id,@email,@passwordHash,@displayName,@birthdate,@gender,@age,@location,@education,@languages,@datingStatus,@heightCm,@weightKg,@bodyType,@photos,@selfiePath,@interestedIn,@createdAt,@bio)`)
     .run(user)
   const token = signToken(user);
-  res.cookie(COOKIE_NAME, token, { httpOnly: true, sameSite: 'lax' });
+  setAuthCookie(res, token);
   res.json({ id: user.id, email: user.email, displayName: user.displayName });
 });
 
@@ -251,12 +269,12 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(400).json({ error: 'Invalid credentials' });
   }
   const token = signToken(user);
-  res.cookie(COOKIE_NAME, token, { httpOnly: true, sameSite: 'lax' });
+  setAuthCookie(res, token);
   res.json({ id: user.id, email: user.email, displayName: user.displayName });
 });
 
 app.post('/api/auth/logout', (req, res) => {
-  res.clearCookie(COOKIE_NAME);
+  clearAuthCookie(res);
   res.json({ ok: true });
 });
 
