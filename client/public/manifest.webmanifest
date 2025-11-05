@@ -1,0 +1,10 @@
+{
+  "name": "555Dating",
+  "short_name": "555Dating",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0b0b",
+  "theme_color": "#ff3b30",
+  "icons": []
+}
+

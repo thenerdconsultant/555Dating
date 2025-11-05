@@ -1,0 +1,74 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String  @id @default(uuid())
+  email        String  @unique
+  passwordHash String
+  displayName  String
+  birthdate    String
+  gender       String
+  age          Int
+  location     String   @default("")
+  education    String   @default("")
+  languages    String   @default("") // JSON string array
+  datingStatus String   @default("")
+  heightCm     Int?
+  weightKg     Int?
+  bodyType     String   @default("")
+  photos       String   @default("") // JSON string array
+  selfiePath   String?
+  createdAt    DateTime @default(now())
+  likesFrom    Like[]   @relation("likes_from")
+  likesTo      Like[]   @relation("likes_to")
+  messagesFrom Message[] @relation("messages_from")
+  messagesTo   Message[] @relation("messages_to")
+  lat          Float?
+  lng          Float?
+  blocksFrom   Block[] @relation("blocks_from")
+  blocksTo     Block[] @relation("blocks_to")
+  isFlagged    Boolean @default(false)
+}
+
+model Like {
+  id       String @id @default(uuid())
+  fromId   String
+  toId     String
+  from     User   @relation("likes_from", fields: [fromId], references: [id])
+  to       User   @relation("likes_to", fields: [toId], references: [id])
+  createdAt DateTime @default(now())
+  @@unique([fromId, toId])
+}
+
+model Message {
+  id      String @id @default(uuid())
+  fromId  String
+  toId    String
+  from    User   @relation("messages_from", fields: [fromId], references: [id])
+  to      User   @relation("messages_to", fields: [toId], references: [id])
+  text    String
+  ts      BigInt
+  readAt  BigInt?
+}
+
+model Room {
+  id    String @id
+  name  String
+}
+
+model Block {
+  id       String @id @default(uuid())
+  fromId   String
+  toId     String
+  from     User   @relation("blocks_from", fields: [fromId], references: [id])
+  to       User   @relation("blocks_to", fields: [toId], references: [id])
+  createdAt DateTime @default(now())
+  @@unique([fromId, toId])
+}
