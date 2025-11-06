@@ -701,7 +701,22 @@ app.get('/api/messages/:userId', authMiddleware, (req, res) => {
   const other = req.params.userId
   const blocked = db.prepare('SELECT 1 FROM blocks WHERE (fromId=? AND toId=?) OR (fromId=? AND toId=?)').get(req.user.id, other, other, req.user.id)
   if (blocked) return res.json([])
-  const thread = db.prepare('SELECT * FROM messages WHERE (fromId=? AND toId=?) OR (fromId=? AND toId=?) ORDER BY ts ASC').all(req.user.id, other, other, req.user.id)
+  const thread = db.prepare(`
+    SELECT m.*, u.displayName as fromDisplayName, u.gender as fromGender
+    FROM messages m
+    JOIN users u ON u.id = m.fromId
+    WHERE (m.fromId=? AND m.toId=?) OR (m.fromId=? AND m.toId=?)
+    ORDER BY m.ts ASC
+  `).all(req.user.id, other, other, req.user.id).map(row => ({
+    id: row.id,
+    fromId: row.fromId,
+    toId: row.toId,
+    text: row.text,
+    ts: row.ts,
+    readAt: row.readAt,
+    displayName: row.fromDisplayName,
+    gender: row.fromGender
+  }))
   // mark as read
   db.prepare('UPDATE messages SET readAt=? WHERE toId=? AND fromId=? AND readAt IS NULL').run(Date.now(), req.user.id, other)
   res.json(thread)
@@ -714,8 +729,24 @@ app.post('/api/messages/:userId', authMiddleware, (req, res) => {
   const banned = ['scam','fraud']
   const lower = String(text).toLowerCase()
   if (banned.some(w => lower.includes(w))) return res.status(400).json({ error: 'Message contains banned words' })
-  const msg = { id: uuidv4(), fromId: req.user.id, toId: req.params.userId, text, ts: Date.now(), readAt: null };
-  db.prepare('INSERT INTO messages (id,fromId,toId,text,ts,readAt) VALUES (@id,@fromId,@toId,@text,@ts,@readAt)').run(msg)
+  const msg = {
+    id: uuidv4(),
+    fromId: req.user.id,
+    toId: req.params.userId,
+    text,
+    ts: Date.now(),
+    readAt: null,
+    displayName: req.user.displayName,
+    gender: req.user.gender
+  };
+  db.prepare('INSERT INTO messages (id,fromId,toId,text,ts,readAt) VALUES (@id,@fromId,@toId,@text,@ts,@readAt)').run({
+    id: msg.id,
+    fromId: msg.fromId,
+    toId: msg.toId,
+    text: msg.text,
+    ts: msg.ts,
+    readAt: msg.readAt
+  })
   io.to(req.params.userId).emit('private_message', msg);
   sendPushNotification(req.params.userId, {
     type: 'message',
