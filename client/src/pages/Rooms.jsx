@@ -3,7 +3,7 @@ import { api } from '../api'
 import { useTranslation } from '../i18n/LanguageContext'
 import { io } from 'socket.io-client'
 
-const SOCKET_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')
+const SOCKET_BASE = (import.meta.env.VITE_SOCKET_BASE || import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')
 
 const formatTime = (ts) => {
   if (!ts) return ''
@@ -239,4 +239,5 @@ export default function Rooms({ user }) {
     </div>
   )
 }
+
 
