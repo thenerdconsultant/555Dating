@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api'
+import { api, assetUrl } from '../api'
 import { Link } from 'react-router-dom'
 import { languageNameFor } from '../constants/languages'
 import { useTranslation } from '../i18n/LanguageContext'
@@ -108,7 +108,7 @@ export default function Swipe({ user, onUpdateUser }) {
       {!candidate && <div className="pill">{t('swipe.noMore', 'No more profiles. Check back later.')}</div>}
       {candidate && (
         <div className="card col" style={{ maxWidth: 480, width: '100%', gap: 10 }}>
-          <img src={(candidate.photos && candidate.photos[0]) || candidate.selfiePath || ''} className="thumb" />
+          <img src={assetUrl((candidate.photos && candidate.photos[0]) || candidate.selfiePath || '')} className="thumb" />
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontWeight: 700, fontSize: 18 }}>{candidate.displayName} - {candidate.age}</div>
             <small className="pill">{lastActiveLabel(candidate.lastActive)}</small>
@@ -156,7 +156,7 @@ export default function Swipe({ user, onUpdateUser }) {
         <div className="card col" style={{ maxWidth: 480, width: '100%', gap: 10, borderColor: '#3a3' }}>
           <div style={{ fontWeight: 700 }}>{t('swipe.matchTitle', "It's a match!")}</div>
           <div className="row" style={{ gap: 10, alignItems: 'center' }}>
-            <img src={(match.photos && match.photos[0]) || match.selfiePath || ''} className="thumb" style={{ width: 80, height: 80 }} />
+            <img src={assetUrl((match.photos && match.photos[0]) || match.selfiePath || '')} className="thumb" style={{ width: 80, height: 80 }} />
             <div>{match.displayName}</div>
           </div>
           <Link className="btn" to={`/messages/${match.id}`}>{t('swipe.matchButton', 'Send a message')}</Link>

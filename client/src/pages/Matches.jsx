@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api'
+import { api, assetUrl } from '../api'
 import { Link } from 'react-router-dom'
 import { languageNameFor } from '../constants/languages'
 import { useTranslation } from '../i18n/LanguageContext'
@@ -26,7 +26,7 @@ export default function Matches() {
       <div className="grid">
         {items.map(person => (
           <div key={person.id} className="card col">
-            <img src={(person.photos && person.photos[0]) || ''} className="thumb" />
+            <img src={assetUrl((person.photos && person.photos[0]) || '')} className="thumb" />
             <div style={{ fontWeight: 600 }}>{person.displayName} - {person.age}</div>
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
               {person.distanceKm != null && (

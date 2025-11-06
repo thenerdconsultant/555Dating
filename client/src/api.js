@@ -6,6 +6,14 @@ function buildUrl(path) {
   return `${API_BASE}${path}`
 }
 
+export function assetUrl(path) {
+  if (!path) return ''
+  if (/^https?:\/\//i.test(path)) return path
+  const normalized = path.startsWith('/') ? path : `/${path}`
+  if (!API_BASE) return normalized
+  return `${API_BASE}${normalized}`
+}
+
 export async function api(path, { method='GET', body, formData }={}) {
   const opts = { method, credentials: 'include' }
   if (formData) {

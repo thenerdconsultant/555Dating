@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api'
+import { api, assetUrl } from '../api'
 import { Link } from 'react-router-dom'
 import { useTranslation } from '../i18n/LanguageContext'
 import { languageNameFor } from '../constants/languages'
@@ -88,7 +88,7 @@ export default function LikesQueue({ user }) {
       <div className="grid">
         {items.map(person => (
           <div key={person.id} className="card col" style={{ gap: 10 }}>
-            <img src={(person.photos && person.photos[0]) || person.selfiePath || ''} className="thumb" />
+            <img src={assetUrl((person.photos && person.photos[0]) || person.selfiePath || '')} className="thumb" />
             <div style={{ fontWeight: 600 }}>{person.displayName} - {person.age}</div>
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
               <span className="pill">{t(`common.gender.${person.gender}`, person.gender)}</span>

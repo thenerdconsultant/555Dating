@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, me as fetchMe } from '../api'
+import { api, me as fetchMe, assetUrl } from '../api'
 import { useTranslation } from '../i18n/LanguageContext'
 import { LANGUAGES, languageNameFor } from '../constants/languages'
 
@@ -240,7 +240,7 @@ export default function Profile({ user, setUser }){
 
       <div className="card col">
         <div className="grid">
-          {(user.photos||[]).map((p,i)=>(<img key={i} src={p} className="thumb"/>))}
+          {(user.photos||[]).map((p,i)=>(<img key={i} src={assetUrl(p)} className="thumb"/>))}
           <div className="col">
             <input ref={fileRef} type="file" accept="image/*" onChange={e=>e.target.files[0]&&uploadPhoto(e.target.files[0])} />
             <small>{t('profile.photos.max', 'Max 2 photos.')}</small>
@@ -254,7 +254,7 @@ export default function Profile({ user, setUser }){
             <strong>{t('profile.selfie.required', 'Required selfie')}</strong>
             <div style={{color:'#9aa0a6'}}>{user.selfiePath? t('profile.selfie.status.submitted','Submitted') : t('profile.selfie.status.missing','Not submitted')}</div>
           </div>
-          {user.selfiePath && <img src={user.selfiePath} className="thumb" style={{width:80,height:80}}/>}
+          {user.selfiePath && <img src={assetUrl(user.selfiePath)} className="thumb" style={{width:80,height:80}}/>}
         </div>
         <video ref={videoRef} style={{width:'100%',borderRadius:8}} muted playsInline></video>
         <canvas ref={canvasRef} style={{display:'none'}}></canvas>
