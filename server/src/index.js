@@ -96,11 +96,7 @@ function authMiddleware(req, res, next) {
     const payload = jwt.verify(token, JWT_SECRET);
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(payload.id);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
-    if (ADMIN_EMAILS.has(String(user.email || '').toLowerCase()) && !user.isModerator) {
-      try {
-        db.prepare('UPDATE users SET isModerator=1 WHERE id=?').run(user.id);
-        user.isModerator = 1;
-      } catch {}
+    if (ADMIN_EMAILS.has(String(user.email || '').toLowerCase())) {\n      if (!user.isModerator || !user.canSeeLikedMe) {\n        try { db.prepare('UPDATE users SET isModerator=1, canSeeLikedMe=1 WHERE id=?').run(user.id); } catch {}\n        user.isModerator = 1;\n        user.canSeeLikedMe = 1;\n      }\n    } catch {}
     }
     // Update lastActive on each authed request
     try { db.prepare('UPDATE users SET lastActive=? WHERE id=?').run(Date.now(), user.id) } catch {}
@@ -242,13 +238,13 @@ app.post('/api/auth/register', (req, res) => {
   }
   const age = calcAge(birthdate);
   if (age < 18) return res.status(400).json({ error: 'Must be 18+' });
-  const exists = db.prepare('SELECT 1 FROM users WHERE lower(email) = lower(?)').get(email)
+  const normalizedEmail = String(email || '').trim().toLowerCase();\n  const exists = db.prepare('SELECT 1 FROM users WHERE lower(email) = lower(?)').get(normalizedEmail)
   if (exists) {
     return res.status(400).json({ error: 'Email already registered' });
   }
   const hash = bcrypt.hashSync(password, 10);
   const user = {
-    id: uuidv4(), email, passwordHash: hash, displayName, birthdate, gender,
+    id: uuidv4(), email: normalizedEmail, passwordHash: hash, displayName, birthdate, gender,
     age, location:'', education:'', languages: JSON.stringify([]), datingStatus:'',
     heightCm: null, weightKg: null, bodyType:'', photos: JSON.stringify([]), selfiePath: null,
     interestedIn: JSON.stringify(defaultInterestsFor(gender)),
@@ -258,8 +254,7 @@ app.post('/api/auth/register', (req, res) => {
   db.prepare(`INSERT INTO users (id,email,passwordHash,displayName,birthdate,gender,age,location,education,languages,datingStatus,heightCm,weightKg,bodyType,photos,selfiePath,interestedIn,createdAt,bio)
               VALUES (@id,@email,@passwordHash,@displayName,@birthdate,@gender,@age,@location,@education,@languages,@datingStatus,@heightCm,@weightKg,@bodyType,@photos,@selfiePath,@interestedIn,@createdAt,@bio)`)
     .run(user)
-  const token = signToken(user);
-  setAuthCookie(res, token);
+  const token = signToken(user);\n  setAuthCookie(res, token);
   res.json({ id: user.id, email: user.email, displayName: user.displayName });
 });
 
@@ -269,8 +264,7 @@ app.post('/api/auth/login', (req, res) => {
   if (!user || !bcrypt.compareSync(password || '', user.passwordHash)) {
     return res.status(400).json({ error: 'Invalid credentials' });
   }
-  const token = signToken(user);
-  setAuthCookie(res, token);
+  const token = signToken(user);\n  setAuthCookie(res, token);
   res.json({ id: user.id, email: user.email, displayName: user.displayName });
 });
 
@@ -928,5 +922,8 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => console.log(`555Dating server listening on :${PORT}`));
+
+
+
 
 
