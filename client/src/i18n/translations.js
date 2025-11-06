@@ -152,6 +152,7 @@ const base = {
   'rooms.message.placeholder': 'Write to the room...',
   'rooms.empty': 'No messages yet. Say hi!',
   'rooms.restricted': 'Subscribe to chat.',
+  'rooms.member': 'Member',
   'rooms.new': 'Create a new room',
   'rooms.create': 'Create room',
 }

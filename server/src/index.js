@@ -873,7 +873,7 @@ io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error('no auth'));
     const payload = jwt.verify(token, JWT_SECRET);
-    const userRecord = db.prepare('SELECT id, gender, canSeeLikedMe FROM users WHERE id=?').get(payload.id);
+    const userRecord = db.prepare('SELECT id, gender, canSeeLikedMe, displayName FROM users WHERE id=?').get(payload.id);
     if (!userRecord) return next(new Error('auth failed'));
     socket.userId = userRecord.id;
     socket.chatProfile = userRecord;
@@ -915,7 +915,7 @@ io.on('connection', (socket) => {
     if (!trimmed) {
       return ack({ error: 'Message cannot be empty.' });
     }
-    const msg = { id: uuidv4(), roomId, fromId: socket.userId, text: trimmed, ts: Date.now() };
+    const msg = { id: uuidv4(), roomId, fromId: socket.userId, text: trimmed, ts: Date.now(), displayName: socket.chatProfile?.displayName || 'Member', gender: socket.chatProfile?.gender || 'man' };
     io.to(`room:${roomId}`).emit('room_message', msg);
     ack({ ok: true });
   });
@@ -928,3 +928,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => console.log(`555Dating server listening on :${PORT}`));
+
+

@@ -5,6 +5,15 @@ import { io } from 'socket.io-client'
 
 const SOCKET_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')
 
+const formatTime = (ts) => {
+  if (!ts) return ''
+  try {
+    return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  } catch {
+    return ''
+  }
+}
+
 export default function Rooms({ user }) {
   const { t } = useTranslation()
   const [rooms, setRooms] = useState([])
@@ -177,14 +186,31 @@ export default function Rooms({ user }) {
           <div className="pill">{t('common.loading', 'Loading...')}</div>
         ) : current ? (
           items.length ? (
-            items.map((m, i) => (
-              <div
-                key={m.id || i}
-                style={{ textAlign: m.fromId === user.id ? 'right' : 'left' }}
-              >
-                <span className="pill">{m.text}</span>
-              </div>
-            ))
+            items.map((m, i) => {
+              const isMine = m.fromId === user.id
+              const bubbleColor = m.gender === 'woman' ? '#ff7ad9' : '#4da6ff'
+              const shadow = '0 0 2px rgba(255,255,255,0.9)'
+              return (
+                <div
+                  key={m.id || i}
+                  style={{ textAlign: isMine ? 'right' : 'left', marginBottom: 6 }}
+                >
+                  <div style={{ fontSize: 12, color: '#9aa0a6', marginBottom: 4 }}><strong>{m.displayName || t('rooms.member', 'Member')}</strong>&nbsp;•&nbsp;{formatTime(m.ts)}</div>
+                  <span
+                    className="pill"
+                    style={{
+                      background: bubbleColor,
+                      color: '#ffffff',
+                      textShadow: '0 0 2px rgba(255,255,255,0.95)',
+                      boxShadow: shadow,
+                      border: '1px solid rgba(255,255,255,0.25)'
+                    }}
+                  >
+                    {m.text}
+                  </span>
+                </div>
+              )
+            })
           ) : (
             <div className="pill">
               {t('rooms.empty', 'No messages yet. Say hi!')}

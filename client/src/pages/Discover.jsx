@@ -32,7 +32,7 @@ export default function Discover({ user }) {
 
   const allowedGenderOptions = (() => {
     const g = user?.gender
-    if (g === 'man') return ['woman', 'ladyboy']
+    if (g === 'man') return ['woman']
     if (g === 'woman') return ['man']
     if (g === 'ladyboy') return ['man']
     return ['woman']
@@ -234,3 +234,4 @@ function formatLastActive(ts) {
   const days = Math.floor(hours / 24)
   return `Active ${days}d ago`
 }
+
