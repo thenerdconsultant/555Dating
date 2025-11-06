@@ -17,6 +17,7 @@ export default function Profile({ user, setUser }){
   const fileRef = useRef()
   const videoRef = useRef()
   const canvasRef = useRef()
+  const streamRef = useRef(null)
 
   useEffect(()=>{
     if (user) setForm({ ...user, bio: user.bio || '' })
@@ -152,19 +153,47 @@ export default function Profile({ user, setUser }){
   }
 
   async function startCamera(){
-    const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode: 'user' } })
-    videoRef.current.srcObject = stream
-    videoRef.current.play()
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('Camera not supported')
+      const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode: 'user' } })
+      streamRef.current = stream
+      const video = videoRef.current
+      video.srcObject = stream
+      const playPromise = video.play()
+      if (playPromise instanceof Promise) await playPromise
+    } catch (error) {
+      setErr(error?.message || 'Unable to access camera')
+    }
   }
   async function takeSelfie(){
-    const video = videoRef.current; const canvas = canvasRef.current
-    const w = 480; const h = Math.round((video.videoHeight/video.videoWidth)*w)
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video?.videoWidth) {
+      setErr('Camera not ready yet')
+      return
+    }
+    const w = 480
+    const h = Math.round((video.videoHeight/video.videoWidth)*w)
     canvas.width = w; canvas.height = h
     const ctx = canvas.getContext('2d'); ctx.drawImage(video,0,0,w,h)
     canvas.toBlob(async (blob)=>{
-      const fd = new FormData(); fd.append('photo', blob, 'selfie.jpg')
-      await api('/api/me/selfie', { method:'POST', formData: fd })
-      const fresh = await fetchMe(); setUser(fresh)
+      if (!blob) {
+        setErr('Unable to capture image')
+        return
+      }
+      try {
+        const fd = new FormData(); fd.append('photo', blob, 'selfie.jpg')
+        await api('/api/me/selfie', { method:'POST', formData: fd })
+        const fresh = await fetchMe(); setUser(fresh)
+      } catch (error) {
+        setErr(error?.message || 'Upload failed')
+      } finally {
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop())
+          streamRef.current = null
+        }
+        if (videoRef.current) videoRef.current.srcObject = null
+      }
     }, 'image/jpeg', 0.9)
   }
 
