@@ -3,6 +3,8 @@ import { api } from '../api'
 import { useTranslation } from '../i18n/LanguageContext'
 import { io } from 'socket.io-client'
 
+const SOCKET_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')
+
 export default function Rooms({ user }) {
   const { t } = useTranslation()
   const [rooms, setRooms] = useState([])
@@ -38,7 +40,8 @@ export default function Rooms({ user }) {
         setRooms(list)
         const { token } = await api('/api/auth/socket-token')
         if (!active) return
-        const socket = io('/', { path: '/socket.io', auth: { token } })
+        const socketUrl = SOCKET_BASE || undefined
+        const socket = io(socketUrl, { path: '/socket.io', auth: { token }, withCredentials: true })
         socketRef.current = socket
         socket.on('room_message', msg => {
           if (msg.roomId === currentRef.current?.id) {
@@ -210,3 +213,4 @@ export default function Rooms({ user }) {
     </div>
   )
 }
+
