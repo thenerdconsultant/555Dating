@@ -96,7 +96,12 @@ function authMiddleware(req, res, next) {
     const payload = jwt.verify(token, JWT_SECRET);
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(payload.id);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
-    if (ADMIN_EMAILS.has(String(user.email || '').toLowerCase())) {\n      if (!user.isModerator || !user.canSeeLikedMe) {\n        try { db.prepare('UPDATE users SET isModerator=1, canSeeLikedMe=1 WHERE id=?').run(user.id); } catch {}\n        user.isModerator = 1;\n        user.canSeeLikedMe = 1;\n      }\n    } catch {}
+    if (ADMIN_EMAILS.has(String(user.email || '').toLowerCase())) {
+      if (!user.isModerator || !user.canSeeLikedMe) {
+        try { db.prepare('UPDATE users SET isModerator=1, canSeeLikedMe=1 WHERE id=?').run(user.id) } catch {}
+        user.isModerator = 1
+        user.canSeeLikedMe = 1
+      }
     }
     // Update lastActive on each authed request
     try { db.prepare('UPDATE users SET lastActive=? WHERE id=?').run(Date.now(), user.id) } catch {}
@@ -922,6 +927,7 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => console.log(`555Dating server listening on :${PORT}`));
+
 
 
 
