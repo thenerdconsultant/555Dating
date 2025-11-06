@@ -243,7 +243,8 @@ app.post('/api/auth/register', (req, res) => {
   }
   const age = calcAge(birthdate);
   if (age < 18) return res.status(400).json({ error: 'Must be 18+' });
-  const normalizedEmail = String(email || '').trim().toLowerCase();\n  const exists = db.prepare('SELECT 1 FROM users WHERE lower(email) = lower(?)').get(normalizedEmail)
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const exists = db.prepare('SELECT 1 FROM users WHERE lower(email) = lower(?)').get(normalizedEmail)
   if (exists) {
     return res.status(400).json({ error: 'Email already registered' });
   }
@@ -254,12 +255,14 @@ app.post('/api/auth/register', (req, res) => {
     heightCm: null, weightKg: null, bodyType:'', photos: JSON.stringify([]), selfiePath: null,
     interestedIn: JSON.stringify(defaultInterestsFor(gender)),
     bio: '',
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    canSeeLikedMe: ADMIN_EMAILS.has(normalizedEmail) ? 1 : 0
   }
-  db.prepare(`INSERT INTO users (id,email,passwordHash,displayName,birthdate,gender,age,location,education,languages,datingStatus,heightCm,weightKg,bodyType,photos,selfiePath,interestedIn,createdAt,bio)
-              VALUES (@id,@email,@passwordHash,@displayName,@birthdate,@gender,@age,@location,@education,@languages,@datingStatus,@heightCm,@weightKg,@bodyType,@photos,@selfiePath,@interestedIn,@createdAt,@bio)`)
+  db.prepare(`INSERT INTO users (id,email,passwordHash,displayName,birthdate,gender,age,location,education,languages,datingStatus,heightCm,weightKg,bodyType,photos,selfiePath,interestedIn,createdAt,bio,canSeeLikedMe)
+              VALUES (@id,@email,@passwordHash,@displayName,@birthdate,@gender,@age,@location,@education,@languages,@datingStatus,@heightCm,@weightKg,@bodyType,@photos,@selfiePath,@interestedIn,@createdAt,@bio,@canSeeLikedMe)`)
     .run(user)
-  const token = signToken(user);\n  setAuthCookie(res, token);
+  const token = signToken(user);
+  setAuthCookie(res, token);
   res.json({ id: user.id, email: user.email, displayName: user.displayName });
 });
 
@@ -269,7 +272,8 @@ app.post('/api/auth/login', (req, res) => {
   if (!user || !bcrypt.compareSync(password || '', user.passwordHash)) {
     return res.status(400).json({ error: 'Invalid credentials' });
   }
-  const token = signToken(user);\n  setAuthCookie(res, token);
+  const token = signToken(user);
+  setAuthCookie(res, token);
   res.json({ id: user.id, email: user.email, displayName: user.displayName });
 });
 
@@ -927,6 +931,11 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => console.log(`555Dating server listening on :${PORT}`));
+
+
+
+
+
 
 
 
