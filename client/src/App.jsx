@@ -12,6 +12,7 @@ import Messages from './pages/Messages'
 import MessagesList from './pages/MessagesList'
 import Rooms from './pages/Rooms'
 import LikesQueue from './pages/LikesQueue'
+import MemberProfile from './pages/MemberProfile'
 
 export default function App(){
   const [user,setUser] = useState(null)
@@ -67,6 +68,7 @@ export default function App(){
             <Route path="/likes" element={<LikesQueue user={user} />} />
             <Route path="/messages" element={<MessagesList user={user} />} />
             <Route path="/messages/:userId" element={<Messages />} />
+            <Route path="/members/:userId" element={<MemberProfile viewer={user} />} />
             <Route path="/rooms" element={<Rooms user={user} />} />
             <Route path="*" element={<Discover user={user} />} />
           </>

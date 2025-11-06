@@ -146,6 +146,15 @@ function calcAge(birthdate) {
   return age;
 }
 
+function primaryPhotoUrl(photosValue, selfiePath) {
+  let list = []
+  if (Array.isArray(photosValue)) list = photosValue
+  else if (typeof photosValue === 'string' && photosValue.trim()) list = parseJSON(photosValue, [])
+  if (!Array.isArray(list)) list = []
+  const first = list.find(p => !!p)
+  return first || selfiePath || null
+}
+
 function recordSwipe(userId, targetId, action) {
   try {
     db.prepare('INSERT INTO swipe_history (id,userId,targetId,action,createdAt) VALUES (?,?,?,?,?)')
@@ -699,10 +708,22 @@ app.get('/api/swipe/next', authMiddleware, (req, res) => {
 app.get('/api/messages/:userId', authMiddleware, (req, res) => {
   if (!req.user.selfiePath) return res.status(403).json({ error: 'Selfie required to message' })
   const other = req.params.userId
+  const partnerRow = db.prepare('SELECT id, displayName, gender, birthdate, location, photos, selfiePath FROM users WHERE id=?').get(other)
+  if (!partnerRow) return res.status(404).json({ error: 'Not found' })
+
   const blocked = db.prepare('SELECT 1 FROM blocks WHERE (fromId=? AND toId=?) OR (fromId=? AND toId=?)').get(req.user.id, other, other, req.user.id)
-  if (blocked) return res.json([])
+  const partner = {
+    id: partnerRow.id,
+    displayName: partnerRow.displayName,
+    gender: partnerRow.gender,
+    age: partnerRow.birthdate ? calcAge(partnerRow.birthdate) : null,
+    location: partnerRow.location || '',
+    avatar: primaryPhotoUrl(partnerRow.photos, partnerRow.selfiePath)
+  }
+  if (blocked) return res.json({ partner, messages: [] })
+
   const thread = db.prepare(`
-    SELECT m.*, u.displayName as fromDisplayName, u.gender as fromGender
+    SELECT m.*, u.displayName as fromDisplayName, u.gender as fromGender, u.photos as fromPhotos, u.selfiePath as fromSelfiePath
     FROM messages m
     JOIN users u ON u.id = m.fromId
     WHERE (m.fromId=? AND m.toId=?) OR (m.fromId=? AND m.toId=?)
@@ -715,11 +736,12 @@ app.get('/api/messages/:userId', authMiddleware, (req, res) => {
     ts: row.ts,
     readAt: row.readAt,
     displayName: row.fromDisplayName,
-    gender: row.fromGender
+    gender: row.fromGender,
+    avatar: primaryPhotoUrl(row.fromPhotos, row.fromSelfiePath)
   }))
   // mark as read
   db.prepare('UPDATE messages SET readAt=? WHERE toId=? AND fromId=? AND readAt IS NULL').run(Date.now(), req.user.id, other)
-  res.json(thread)
+  res.json({ partner, messages: thread })
 });
 
 app.post('/api/messages/:userId', authMiddleware, (req, res) => {
@@ -737,7 +759,8 @@ app.post('/api/messages/:userId', authMiddleware, (req, res) => {
     ts: Date.now(),
     readAt: null,
     displayName: req.user.displayName,
-    gender: req.user.gender
+    gender: req.user.gender,
+    avatar: primaryPhotoUrl(req.user.photos, req.user.selfiePath)
   };
   db.prepare('INSERT INTO messages (id,fromId,toId,text,ts,readAt) VALUES (@id,@fromId,@toId,@text,@ts,@readAt)').run({
     id: msg.id,

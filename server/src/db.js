@@ -2,8 +2,11 @@ import Database from 'better-sqlite3'
 import path from 'path'
 import fs from 'fs'
 
-const dbFile = path.join(process.cwd(), 'src', 'dev.db')
-const db = new Database(dbFile)
+const defaultDbPath = path.resolve(process.cwd(), 'src', 'dev.db')
+const configuredPath = (process.env.DB_PATH || '').trim()
+const dbPath = configuredPath ? path.resolve(configuredPath) : defaultDbPath
+fs.mkdirSync(path.dirname(dbPath), { recursive: true })
+const db = new Database(dbPath)
 
 db.pragma('journal_mode = WAL')
 
