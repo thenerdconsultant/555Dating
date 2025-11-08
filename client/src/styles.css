@@ -139,10 +139,12 @@ input, select, button, textarea {
   backdrop-filter: blur(12px) saturate(180%);
   -webkit-backdrop-filter: blur(12px) saturate(180%);
   display: flex;
-  justify-content: space-around;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
-  padding: var(--space-md);
-  padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom));
+  gap: 8px;
+  padding: var(--space-sm) var(--space-md);
+  padding-bottom: calc(var(--space-sm) + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
   z-index: 100;
@@ -155,6 +157,8 @@ input, select, button, textarea {
   font-weight: 500;
   transition: all var(--transition);
   white-space: nowrap;
+  text-align: center;
+  min-width: 80px;
 }
 
 .nav a:hover {

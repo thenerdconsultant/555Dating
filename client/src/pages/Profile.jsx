@@ -392,32 +392,32 @@ useEffect(()=>{
 
       <div className="card col">
         <strong>{t('profile.photos.title','Photos')}</strong>
-        <div className="grid" style={{gap:12}}>
+        <div className="row" style={{gap:12, flexWrap:'wrap'}}>
           {(user.photos||[]).map((p,i)=>(
-            <div key={p || i} style={{ position:'relative', width:'fit-content' }}>
-              <img src={assetUrl(p)} className="thumb" />
+            <div key={p || i} style={{ position:'relative', width:200, maxWidth:'100%' }}>
+              <img src={assetUrl(p)} className="thumb" style={{width:200, height:200, maxWidth:'100%'}} />
               <button
                 type="button"
                 className="btn secondary"
-                style={{ position:'absolute', top:6, right:6, padding:'2px 8px', fontSize:12 }}
+                style={{ position:'absolute', top:8, right:8, padding:'4px 10px', fontSize:12 }}
                 onClick={()=>removePhoto(p)}
               >
                 {t('profile.photos.remove','Remove')}
               </button>
             </div>
           ))}
-          <div className="col" style={{gap:6}}>
-            <input ref={fileRef} type="file" accept="image/*" onChange={e=>e.target.files[0]&&uploadPhoto(e.target.files[0])} />
-            <small>{t('profile.photos.max', 'Max 2 photos.')}</small>
-            <small style={{color:'#9aa0a6'}}>{t('profile.photos.addInfo','Square or portrait photos look best.')}</small>
-          </div>
+        </div>
+        <div className="col" style={{gap:6, marginTop:12}}>
+          <input ref={fileRef} type="file" accept="image/*" onChange={e=>e.target.files[0]&&uploadPhoto(e.target.files[0])} />
+          <small>{t('profile.photos.max', 'Max 2 photos.')}</small>
+          <small style={{color:'#9aa0a6'}}>{t('profile.photos.addInfo','Square or portrait photos look best.')}</small>
         </div>
         {photoErr && <div className="pill" style={{color:'#ff8b8b'}}>{photoErr}</div>}
       </div>
 
       <div className="card col">
-        <div className="row" style={{alignItems:'center',justifyContent:'space-between', gap:12}}>
-          <div className="col" style={{ gap: 6 }}>
+        <div className="row" style={{alignItems:'center',justifyContent:'space-between', gap:12, flexWrap:'wrap'}}>
+          <div className="col" style={{ gap: 6, flex:1, minWidth:200 }}>
             <strong>{t('profile.selfie.required', 'Required selfie')}</strong>
             <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <span className={`pill ${selfieMeta.variant}`}>{selfieMeta.label}</span>
@@ -427,13 +427,13 @@ useEffect(()=>{
                 </small>
               )}
             </div>
-            <div style={{color:'#9aa0a6'}}>
+            <div style={{color:'#9aa0a6', wordWrap:'break-word'}}>
               {user.selfiePath
                 ? t('profile.selfie.status.submitted','Selfie on file. Re-upload to update your verification.')
                 : t('profile.selfie.status.missing','Upload a clear selfie to unlock more features.')}
             </div>
           </div>
-          {user.selfiePath && <img src={assetUrl(user.selfiePath)} className="thumb" style={{width:80,height:80}} alt={t('admin.selfieAlt','Member selfie')} />}
+          {user.selfiePath && <img src={assetUrl(user.selfiePath)} className="thumb" style={{width:80,height:80,flexShrink:0}} alt={t('admin.selfieAlt','Member selfie')} />}
         </div>
         <video ref={videoRef} style={{width:'100%',borderRadius:8}} muted playsInline></video>
         <canvas ref={canvasRef} style={{display:'none'}}></canvas>
