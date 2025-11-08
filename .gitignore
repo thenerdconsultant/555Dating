@@ -45,5 +45,5 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Duplicate directories from refactoring
-src/
+# Duplicate directories from refactoring (root level only)
+/src/
