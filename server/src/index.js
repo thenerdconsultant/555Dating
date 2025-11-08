@@ -61,8 +61,15 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Ensure uploads directory exists
+if (!fs.existsSync(UPLOADS_PATH)) {
+  fs.mkdirSync(UPLOADS_PATH, { recursive: true });
+  console.log(`Created uploads directory: ${UPLOADS_PATH}`);
+}
+
 // Static files for uploaded photos
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+app.use('/uploads', express.static(UPLOADS_PATH));
+console.log(`Serving uploads from: ${UPLOADS_PATH}`);
 
 // Helpers to map JSON columns
 function parseJSON(text, fallback) {
@@ -78,6 +85,7 @@ function defaultInterestsFor(gender) {
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-555dating-secret';
+const UPLOADS_PATH = process.env.UPLOADS_PATH || path.join(__dirname, '..', 'uploads');
 const COOKIE_NAME = 'jwt';
 const COOKIE_SAMESITE = process.env.COOKIE_SAMESITE || 'lax';
 const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true';
@@ -710,7 +718,7 @@ app.post('/api/me/photo', authMiddleware, upload.single('photo'), async (req, re
     const photos = parseJSON(row?.photos, [])
     if (photos.length >= 2) return res.status(400).json({ error: 'Max 2 photos allowed' })
     const filename = `${uuidv4()}.jpg`
-    const outPath = path.join(__dirname, '..', 'uploads', filename)
+    const outPath = path.join(UPLOADS_PATH, filename)
     await sharp(req.file.buffer).rotate().resize(1080, 1080, { fit:'inside' }).jpeg({ quality:85 }).toFile(outPath)
     const updated = [...photos, '/uploads/' + filename]
     db.prepare('UPDATE users SET photos=? WHERE id=?').run(JSON.stringify(updated), req.user.id)
@@ -729,7 +737,8 @@ app.delete('/api/me/photo', authMiddleware, async (req, res) => {
   const updated = photos.filter(p => p !== target)
   db.prepare('UPDATE users SET photos=? WHERE id=?').run(JSON.stringify(updated), req.user.id)
   if (target.startsWith('/uploads/')) {
-    const filePath = path.join(__dirname, '..', target)
+    const filename = target.replace('/uploads/', '');
+    const filePath = path.join(UPLOADS_PATH, filename)
     fs.stat(filePath, (err) => {
       if (!err) {
         fs.unlink(filePath, () => {})
@@ -743,7 +752,7 @@ app.post('/api/me/selfie', authMiddleware, upload.single('photo'), async (req, r
   try {
     if (!req.file) return res.status(400).json({ error: 'No file' });
     const filename = `${uuidv4()}.jpg`
-    const outPath = path.join(__dirname, '..', 'uploads', filename)
+    const outPath = path.join(UPLOADS_PATH, filename)
     await sharp(req.file.buffer).rotate().resize(1080, 1080, { fit:'inside' }).jpeg({ quality:85 }).toFile(outPath)
     const selfiePath = '/uploads/' + filename
     db.prepare('UPDATE users SET selfiePath=?, selfieStatus=? WHERE id=?').run(selfiePath, 'pending', req.user.id)
@@ -1458,7 +1467,8 @@ app.post('/api/admin/fix-photos', authMiddleware, requireModerator, (req, res) =
               }
 
               // Check if file exists
-              const filePath = path.join(__dirname, '..', normalized);
+              const filename = normalized.replace('/uploads/', '');
+              const filePath = path.join(UPLOADS_PATH, filename);
               if (fs.existsSync(filePath)) {
                 updatedPhotos.push(normalized);
               } else {
@@ -1492,7 +1502,8 @@ app.post('/api/admin/fix-photos', authMiddleware, requireModerator, (req, res) =
         }
 
         // Check if file exists
-        const filePath = path.join(__dirname, '..', normalized);
+        const filename = normalized.replace('/uploads/', '');
+        const filePath = path.join(UPLOADS_PATH, filename);
         if (!fs.existsSync(filePath)) {
           normalized = null;
           removedCount++;
