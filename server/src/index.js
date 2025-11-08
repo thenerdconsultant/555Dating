@@ -61,6 +61,16 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Configuration constants
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-555dating-secret';
+const UPLOADS_PATH = process.env.UPLOADS_PATH || path.join(__dirname, '..', 'uploads');
+const COOKIE_NAME = 'jwt';
+const COOKIE_SAMESITE = process.env.COOKIE_SAMESITE || 'lax';
+const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true';
+const BOOST_MINUTES = Number(process.env.BOOST_MINUTES || 15);
+const BOOST_DURATION_MS = BOOST_MINUTES * 60 * 1000;
+const REWIND_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
 // Ensure uploads directory exists
 if (!fs.existsSync(UPLOADS_PATH)) {
   fs.mkdirSync(UPLOADS_PATH, { recursive: true });
@@ -83,15 +93,6 @@ function defaultInterestsFor(gender) {
   if (gender === 'ladyboy') return ['man']
   return ['woman']
 }
-
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-555dating-secret';
-const UPLOADS_PATH = process.env.UPLOADS_PATH || path.join(__dirname, '..', 'uploads');
-const COOKIE_NAME = 'jwt';
-const COOKIE_SAMESITE = process.env.COOKIE_SAMESITE || 'lax';
-const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true';
-const BOOST_MINUTES = Number(process.env.BOOST_MINUTES || 15);
-const BOOST_DURATION_MS = BOOST_MINUTES * 60 * 1000;
-const REWIND_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@555dating.local';
