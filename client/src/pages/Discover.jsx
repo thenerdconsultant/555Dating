@@ -3,9 +3,13 @@ import { api, assetUrl } from '../api'
 import { Link } from 'react-router-dom'
 import { LANGUAGES, languageNameFor } from '../constants/languages'
 import { useTranslation } from '../i18n/LanguageContext'
+import ModBadge from '../components/ModBadge'
+import VerifiedBadge from '../components/VerifiedBadge'
+import PhotoLightbox from '../components/PhotoLightbox'
+import ReportDialog from '../components/ReportDialog'
 
-export default function Discover({ user }) {
-  const [filters, setFilters] = useState({
+const STORAGE_KEY = 'discoverFilters.v1'
+const defaultFilters = {
     gender: '',
     minAge: '',
     maxAge: '',
@@ -16,13 +20,21 @@ export default function Discover({ user }) {
     radiusKm: '',
     lat: '',
     lng: ''
-  })
+}
+
+export default function Discover({ user }) {
+  const [filters, setFilters] = useState(() => ({ ...defaultFilters }))
   const [people, setPeople] = useState([])
   const { t } = useTranslation()
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
+  const [hydrated, setHydrated] = useState(false)
+  const [lastApplied, setLastApplied] = useState(null)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxPhotos, setLightboxPhotos] = useState([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
 
   function setF(key, value) {
     setPeople([])
@@ -44,6 +56,24 @@ export default function Discover({ user }) {
     }
   }, [user?.gender])
 
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+      if (saved && typeof saved === 'object') {
+        setFilters(prev => ({ ...prev, ...saved }))
+      }
+    } catch {
+      // ignore
+    } finally {
+      setHydrated(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(filters))
+  }, [filters, hydrated])
+
   async function load(nextPage = 1, append = false) {
     setErr('')
     setLoading(true)
@@ -57,6 +87,7 @@ export default function Discover({ user }) {
       setTotal(res.total)
       setPeople(prev => (append ? [...prev, ...res.items] : res.items))
       setPage(res.page)
+      if (!append) setLastApplied(new Date())
     } catch (e) {
       setErr(e.message)
     } finally {
@@ -65,8 +96,9 @@ export default function Discover({ user }) {
   }
 
   useEffect(() => {
+    if (!hydrated) return
     load(1, false)
-  }, [filters.gender, filters.minAge, filters.maxAge, filters.location, filters.bodyType, filters.education, filters.language, filters.radiusKm])
+  }, [filters.gender, filters.minAge, filters.maxAge, filters.location, filters.bodyType, filters.education, filters.language, filters.radiusKm, hydrated])
 
   function more() {
     if (people.length < total) load(page + 1, true)
@@ -81,6 +113,28 @@ export default function Discover({ user }) {
       (e) => setErr(e.message),
       { enableHighAccuracy: true, timeout: 10000 }
     )
+  }
+
+  const activeFilterSummaries = (() => {
+    const badges = []
+    if (filters.gender) {
+      badges.push(t('discover.filters.summary.gender','Looking for {value}', {
+        value: t(`common.gender.${filters.gender}`, filters.gender)
+      }))
+    }
+    if (filters.location) badges.push(t('discover.filters.summary.location','Near {value}', { value: filters.location }))
+    if (filters.bodyType) badges.push(t('discover.filters.summary.bodyType','Body: {value}', { value: t(`profile.bodyType.${filters.bodyType}`, filters.bodyType) }))
+    if (filters.education) badges.push(t('discover.filters.summary.education','Education: {value}', { value: filters.education }))
+    if (filters.language) badges.push(t('discover.filters.summary.language','Language: {value}', { value: filters.language }))
+    if (filters.radiusKm) badges.push(t('discover.filters.summary.radius','Radius ≤ {value} km', { value: filters.radiusKm }))
+    return badges
+  })()
+
+  function resetFilters() {
+    setFilters({ ...defaultFilters })
+    setPeople([])
+    setPage(1)
+    localStorage.removeItem(STORAGE_KEY)
   }
 
   return (
@@ -137,15 +191,44 @@ export default function Discover({ user }) {
         />
         <button className="btn secondary" onClick={useMyLocation}>{t('discover.useLocation', 'Use my location')}</button>
         <button className="btn secondary" onClick={() => load(1, false)}>{t('discover.apply', 'Apply')}</button>
+        <button className="btn secondary" onClick={resetFilters}>{t('discover.clear', 'Clear filters')}</button>
       </div>
+
+      {(activeFilterSummaries.length > 0 || lastApplied) && (
+        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+          {activeFilterSummaries.map(text => (
+            <span key={text} className="pill secondary">{text}</span>
+          ))}
+          {lastApplied && (
+            <small className="pill">
+              {t('discover.filters.applied','Filters updated at {time}', { time: lastApplied.toLocaleTimeString() })}
+            </small>
+          )}
+        </div>
+      )}
 
       {err && <div className="pill" style={{ color: '#ff8b8b' }}>{err}</div>}
 
       <div className="grid">
         {people.map(person => (
           <div key={person.id} className="card col">
-            <img src={assetUrl((person.photos && person.photos[0]) || person.selfiePath || '')} className="thumb" />
-            <div style={{ fontWeight: 600 }}>{person.displayName} - {person.age}</div>
+            <img
+              src={assetUrl((person.photos && person.photos[0]) || person.selfiePath || '')}
+              className="thumb photo-clickable"
+              onClick={() => {
+                const photos = person.photos || []
+                if (photos.length > 0) {
+                  setLightboxPhotos(photos)
+                  setLightboxIndex(0)
+                  setLightboxOpen(true)
+                }
+              }}
+            />
+            <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+              <span>{person.displayName} - {person.age}</span>
+              <VerifiedBadge isVerified={!!person.selfiePath} size="xs" />
+              <ModBadge isModerator={person.isModerator} size="xs" />
+            </div>
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
               <span className="pill">{t(`common.gender.${person.gender}`, person.gender)}</span>
               {person.bodyType && (
@@ -176,7 +259,7 @@ export default function Discover({ user }) {
               <Link className="btn secondary" to={`/messages/${person.id}`}>{t('actions.message', 'Message')}</Link>
               <LikeButton userId={person.id} />
               <BlockButtons userId={person.id} />
-              <ReportButton userId={person.id} />
+              <ReportButton userId={person.id} userName={person.displayName} />
             </div>
           </div>
         ))}
@@ -187,6 +270,14 @@ export default function Discover({ user }) {
           <button className="btn secondary" onClick={more}>{t('discover.loadMore', 'Load more')}</button>
         )}
       </div>
+
+      {lightboxOpen && (
+        <PhotoLightbox
+          photos={lightboxPhotos}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
     </div>
   )
 }
@@ -217,11 +308,30 @@ function BlockButtons({ userId }) {
     : <button className="btn secondary" onClick={block}>{t('actions.block', 'Block')}</button>
 }
 
-function ReportButton({ userId }) {
+function ReportButton({ userId, userName }) {
+  const [showDialog, setShowDialog] = useState(false)
   const [done, setDone] = useState(false)
   const { t } = useTranslation()
-  async function report() { await api('/api/report/' + userId, { method: 'POST' }); setDone(true) }
-  return <button className="btn secondary" onClick={report} disabled={done}>{done ? t('actions.reported', 'Reported') : t('actions.report', 'Report')}</button>
+
+  if (done) {
+    return <button className="btn secondary" disabled>{t('actions.reported', 'Reported')}</button>
+  }
+
+  return (
+    <>
+      <button className="btn secondary" onClick={() => setShowDialog(true)}>
+        {t('actions.report', 'Report')}
+      </button>
+      {showDialog && (
+        <ReportDialog
+          userId={userId}
+          userName={userName}
+          onClose={() => setShowDialog(false)}
+          onSuccess={() => setDone(true)}
+        />
+      )}
+    </>
+  )
 }
 
 function formatLastActive(ts) {

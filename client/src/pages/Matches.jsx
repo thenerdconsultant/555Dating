@@ -3,6 +3,8 @@ import { api, assetUrl } from '../api'
 import { Link } from 'react-router-dom'
 import { languageNameFor } from '../constants/languages'
 import { useTranslation } from '../i18n/LanguageContext'
+import ModBadge from '../components/ModBadge'
+import VerifiedBadge from '../components/VerifiedBadge'
 
 export default function Matches() {
   const [items, setItems] = useState([])
@@ -27,7 +29,11 @@ export default function Matches() {
         {items.map(person => (
           <div key={person.id} className="card col">
             <img src={assetUrl((person.photos && person.photos[0]) || '')} className="thumb" />
-            <div style={{ fontWeight: 600 }}>{person.displayName} - {person.age}</div>
+            <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+              <span>{person.displayName} - {person.age}</span>
+              <VerifiedBadge isVerified={!!person.selfiePath} size="xs" />
+              <ModBadge isModerator={person.isModerator} size="xs" />
+            </div>
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
               {person.distanceKm != null && (
                 <span className="pill secondary">

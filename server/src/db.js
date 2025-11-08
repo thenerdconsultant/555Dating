@@ -37,7 +37,13 @@ CREATE TABLE IF NOT EXISTS users (
   boostUntil INTEGER DEFAULT 0,
   lastRewindAt INTEGER DEFAULT 0,
   canSeeLikedMe INTEGER DEFAULT 0,
-  bio TEXT DEFAULT ''
+  bio TEXT DEFAULT '',
+  isModerator INTEGER DEFAULT 0,
+  isSuspended INTEGER DEFAULT 0,
+  isHidden INTEGER DEFAULT 0,
+  stripeCustomerId TEXT,
+  stripeSubscriptionId TEXT,
+  termsAcceptedAt TEXT
 );
 
 CREATE TABLE IF NOT EXISTS likes (
@@ -102,6 +108,27 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   auth TEXT,
   createdAt INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS password_resets (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL,
+  token TEXT UNIQUE NOT NULL,
+  expiresAt INTEGER NOT NULL,
+  usedAt INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS reports (
+  id TEXT PRIMARY KEY,
+  reporterId TEXT NOT NULL,
+  reportedUserId TEXT NOT NULL,
+  category TEXT NOT NULL,
+  reason TEXT,
+  createdAt INTEGER NOT NULL,
+  reviewedAt INTEGER,
+  reviewedBy TEXT,
+  status TEXT DEFAULT 'pending',
+  action TEXT
+);
 `)
 
 // Ensure added columns exist (for older DBs)
@@ -114,7 +141,16 @@ try {
   if (!cols.some(c => c.name === 'canSeeLikedMe')) db.exec("ALTER TABLE users ADD COLUMN canSeeLikedMe INTEGER DEFAULT 0")
   if (!cols.some(c => c.name === 'bio')) db.exec("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''")
   if (!cols.some(c => c.name === 'isModerator')) db.exec("ALTER TABLE users ADD COLUMN isModerator INTEGER DEFAULT 0")
-} catch {}
+  if (!cols.some(c => c.name === 'isSuspended')) db.exec("ALTER TABLE users ADD COLUMN isSuspended INTEGER DEFAULT 0")
+  if (!cols.some(c => c.name === 'isHidden')) db.exec("ALTER TABLE users ADD COLUMN isHidden INTEGER DEFAULT 0")
+  if (!cols.some(c => c.name === 'stripeCustomerId')) db.exec("ALTER TABLE users ADD COLUMN stripeCustomerId TEXT")
+  if (!cols.some(c => c.name === 'stripeSubscriptionId')) db.exec("ALTER TABLE users ADD COLUMN stripeSubscriptionId TEXT")
+  if (!cols.some(c => c.name === 'termsAcceptedAt')) db.exec("ALTER TABLE users ADD COLUMN termsAcceptedAt TEXT")
+  if (!cols.some(c => c.name === 'selfieStatus')) db.exec("ALTER TABLE users ADD COLUMN selfieStatus TEXT DEFAULT 'none'")
+  if (!cols.some(c => c.name === 'selfieRejectionReason')) db.exec("ALTER TABLE users ADD COLUMN selfieRejectionReason TEXT")
+} catch (err) {
+  console.error('Database migration error:', err);
+}
 
 // Seed default room if not exists
 const roomCount = db.prepare('SELECT COUNT(*) as n FROM rooms').get().n

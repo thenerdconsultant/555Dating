@@ -4,24 +4,59 @@ import { useTranslation } from '../i18n/LanguageContext'
 import { LANGUAGES, languageNameFor } from '../constants/languages'
 
 export default function Profile({ user, setUser }){
-  const [form,setForm] = useState({ ...user })
+  const hydrateProfile = (source = {}) => ({
+    displayName: source.displayName || '',
+    gender: source.gender || 'man',
+    location: source.location || '',
+    education: source.education || '',
+    languages: Array.isArray(source.languages) ? source.languages : [],
+    datingStatus: source.datingStatus || '',
+    heightCm: source.heightCm || '',
+    weightKg: source.weightKg || '',
+    bodyType: source.bodyType || '',
+    bio: source.bio || '',
+    interestedIn: Array.isArray(source.interestedIn) ? source.interestedIn : [],
+    photos: Array.isArray(source.photos) ? source.photos : []
+  })
+  const [form,setForm] = useState(hydrateProfile(user))
   const { t } = useTranslation()
   const [err,setErr] = useState('')
   const [saving,setSaving] = useState(false)
+  const [saveNotice,setSaveNotice] = useState('')
+  const [privacy,setPrivacy] = useState({ isHidden: !!user?.isHidden, pauseAccount: !!user?.isSuspended })
+  const [privacySaving,setPrivacySaving] = useState(false)
+  const [privacyErr,setPrivacyErr] = useState('')
   const [pushSupported,setPushSupported] = useState(false)
   const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
   const [boostErr,setBoostErr] = useState('')
   const [boostLoading,setBoostLoading] = useState(false)
   const [pushState,setPushState] = useState({ enabled:false, loading:false, error:'' })
   const [tick,setTick] = useState(Date.now())
+  const [photoErr,setPhotoErr] = useState('')
+  const [lastSavedAt,setLastSavedAt] = useState(null)
+  const noticeTimer = useRef(null)
+  const [blockedUsers,setBlockedUsers] = useState([])
+  const [blockedLoading,setBlockedLoading] = useState(false)
+  const [blockedError,setBlockedError] = useState('')
+  const [reportsHistory,setReportsHistory] = useState([])
+  const [reportsLoading,setReportsLoading] = useState(false)
+  const [reportsError,setReportsError] = useState('')
   const fileRef = useRef()
   const videoRef = useRef()
   const canvasRef = useRef()
   const streamRef = useRef(null)
 
-  useEffect(()=>{
-    if (user) setForm({ ...user, bio: user.bio || '' })
+useEffect(()=>{
+    if (user) setForm(hydrateProfile(user))
   },[user])
+useEffect(()=>{
+    setPrivacy({ isHidden: !!user?.isHidden, pauseAccount: !!user?.isSuspended })
+  },[user?.isHidden, user?.isSuspended])
+  useEffect(()=>{
+    if (!user?.id) return
+    loadBlockedUsers()
+    loadReportHistory()
+  },[user?.id])
   useEffect(()=>{
     if (typeof window === 'undefined' || typeof navigator === 'undefined') return
     let cancelled = false
@@ -53,11 +88,56 @@ export default function Profile({ user, setUser }){
     return ()=>clearInterval(id)
   },[])
   useEffect(()=>{
-    const id = setInterval(()=>setTick(Date.now()), 60_000)
-    return ()=>clearInterval(id)
+    return ()=>{ if (noticeTimer.current) clearTimeout(noticeTimer.current) }
   },[])
-
   function update(k,v){ setForm(p=>({ ...p, [k]:v })) }
+
+  function showNotice(message) {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current)
+    setSaveNotice(message)
+    setLastSavedAt(new Date())
+    noticeTimer.current = setTimeout(()=>setSaveNotice(''), 5000)
+  }
+
+  async function loadBlockedUsers() {
+    setBlockedLoading(true)
+    setBlockedError('')
+    try {
+      const data = await api('/api/blocks')
+      const sanitized = Array.isArray(data) ? data.map(item => ({
+        ...item,
+        photos: Array.isArray(item.photos) ? item.photos : []
+      })) : []
+      setBlockedUsers(sanitized)
+    } catch (error) {
+      setBlockedError(error.message)
+    } finally {
+      setBlockedLoading(false)
+    }
+  }
+
+  async function loadReportHistory() {
+    setReportsLoading(true)
+    setReportsError('')
+    try {
+      const data = await api('/api/my-reports')
+      setReportsHistory(Array.isArray(data) ? data : [])
+    } catch (error) {
+      setReportsError(error.message)
+    } finally {
+      setReportsLoading(false)
+    }
+  }
+
+  async function unblockUser(targetId) {
+    try {
+      await api(`/api/block/${targetId}`, { method: 'DELETE' })
+      showNotice(t('profile.blocked.unblocked', 'User unblocked'))
+      loadBlockedUsers()
+    } catch (error) {
+      setBlockedError(error.message)
+    }
+  }
 
   async function save(){
     setErr(''); setSaving(true)
@@ -77,13 +157,48 @@ export default function Profile({ user, setUser }){
       }
       await api('/api/me', { method:'PUT', body: payload })
       const fresh = await fetchMe(); setUser(fresh)
+      showNotice(t('profile.saved','Profile updated'))
     } catch(e) { setErr(e.message) } finally { setSaving(false) }
   }
 
+  async function updatePreferences(changes){
+    setPrivacyErr('')
+    setPrivacy(prev => ({ ...prev, ...changes }))
+    setPrivacySaving(true)
+    try {
+      await api('/api/me/preferences', { method:'PATCH', body: changes })
+      const fresh = await fetchMe()
+      setUser(fresh)
+      setPrivacy({ isHidden: !!fresh?.isHidden, pauseAccount: !!fresh?.isSuspended })
+    } catch (e) {
+      setPrivacyErr(e.message)
+      setPrivacy({ isHidden: !!user?.isHidden, pauseAccount: !!user?.isSuspended })
+    } finally {
+      setPrivacySaving(false)
+    }
+  }
+
   async function uploadPhoto(file){
-    const fd = new FormData(); fd.append('photo', file)
-    await api('/api/me/photo', { method:'POST', formData: fd })
-    const fresh = await fetchMe(); setUser(fresh)
+    setPhotoErr('')
+    try {
+      const fd = new FormData(); fd.append('photo', file)
+      await api('/api/me/photo', { method:'POST', formData: fd })
+      const fresh = await fetchMe(); setUser(fresh)
+      showNotice(t('profile.photos.updated','Photos updated'))
+    } catch (e) {
+      setPhotoErr(e.message)
+    }
+  }
+
+  async function removePhoto(path){
+    setPhotoErr('')
+    try {
+      await api('/api/me/photo', { method:'DELETE', body:{ path } })
+      const fresh = await fetchMe(); setUser(fresh)
+      showNotice(t('profile.photos.removed','Photo removed'))
+    } catch (e) {
+      setPhotoErr(e.message)
+    }
   }
 
   async function startBoost(){
@@ -221,6 +336,14 @@ export default function Profile({ user, setUser }){
     { value: 'Doctorate', key: 'profile.education.doctorate' },
     { value: 'Other', key: 'profile.education.other' }
   ]
+  const selfieStatus = user?.selfieStatus || 'none'
+  const selfieMeta = getSelfieStatusMeta(selfieStatus, t)
+  const safetyTips = [
+    t('profile.safety.tip1','Meet in public places for your first few dates.'),
+    t('profile.safety.tip2','Tell a friend where you\'re going and share your live location.'),
+    t('profile.safety.tip3','Keep personal details private until you trust the person.'),
+    t('profile.safety.tip4','Report and block anyone who makes you feel unsafe.')
+  ]
   const statusOptions = [
     { value: 'Single', key: 'profile.status.single' },
     { value: 'Divorced', key: 'profile.status.divorced' },
@@ -268,22 +391,49 @@ export default function Profile({ user, setUser }){
       </div>
 
       <div className="card col">
-        <div className="grid">
-          {(user.photos||[]).map((p,i)=>(<img key={i} src={assetUrl(p)} className="thumb"/>))}
-          <div className="col">
+        <strong>{t('profile.photos.title','Photos')}</strong>
+        <div className="grid" style={{gap:12}}>
+          {(user.photos||[]).map((p,i)=>(
+            <div key={p || i} style={{ position:'relative', width:'fit-content' }}>
+              <img src={assetUrl(p)} className="thumb" />
+              <button
+                type="button"
+                className="btn secondary"
+                style={{ position:'absolute', top:6, right:6, padding:'2px 8px', fontSize:12 }}
+                onClick={()=>removePhoto(p)}
+              >
+                {t('profile.photos.remove','Remove')}
+              </button>
+            </div>
+          ))}
+          <div className="col" style={{gap:6}}>
             <input ref={fileRef} type="file" accept="image/*" onChange={e=>e.target.files[0]&&uploadPhoto(e.target.files[0])} />
             <small>{t('profile.photos.max', 'Max 2 photos.')}</small>
+            <small style={{color:'#9aa0a6'}}>{t('profile.photos.addInfo','Square or portrait photos look best.')}</small>
           </div>
         </div>
+        {photoErr && <div className="pill" style={{color:'#ff8b8b'}}>{photoErr}</div>}
       </div>
 
       <div className="card col">
-        <div className="row" style={{alignItems:'center',justifyContent:'space-between'}}>
-          <div>
+        <div className="row" style={{alignItems:'center',justifyContent:'space-between', gap:12}}>
+          <div className="col" style={{ gap: 6 }}>
             <strong>{t('profile.selfie.required', 'Required selfie')}</strong>
-            <div style={{color:'#9aa0a6'}}>{user.selfiePath? t('profile.selfie.status.submitted','Submitted') : t('profile.selfie.status.missing','Not submitted')}</div>
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span className={`pill ${selfieMeta.variant}`}>{selfieMeta.label}</span>
+              {selfieStatus === 'rejected' && user.selfieRejectionReason && (
+                <small className="text-muted">
+                  {t('profile.selfie.rejectionReason','Reason: {text}', { text: user.selfieRejectionReason })}
+                </small>
+              )}
+            </div>
+            <div style={{color:'#9aa0a6'}}>
+              {user.selfiePath
+                ? t('profile.selfie.status.submitted','Selfie on file. Re-upload to update your verification.')
+                : t('profile.selfie.status.missing','Upload a clear selfie to unlock more features.')}
+            </div>
           </div>
-          {user.selfiePath && <img src={assetUrl(user.selfiePath)} className="thumb" style={{width:80,height:80}}/>}
+          {user.selfiePath && <img src={assetUrl(user.selfiePath)} className="thumb" style={{width:80,height:80}} alt={t('admin.selfieAlt','Member selfie')} />}
         </div>
         <video ref={videoRef} style={{width:'100%',borderRadius:8}} muted playsInline></video>
         <canvas ref={canvasRef} style={{display:'none'}}></canvas>
@@ -412,14 +562,182 @@ export default function Profile({ user, setUser }){
           </div>
         </div>
 
-        <div className="row" style={{justifyContent:'space-between',alignItems:'center'}}>
-          <button className="btn secondary" onClick={useMyLocation}>{t('profile.useLocation','Use my location')}</button>
-          {err && <div className="pill" style={{color:'#ff8b8b'}}>{err}</div>}
-          <button className="btn" disabled={saving} onClick={save}>{saving ? t('profile.saving','Saving...') : t('profile.save','Save profile')}</button>
+        <div className="card col">
+          <strong>{t('profile.visibility.title','Visibility & safety')}</strong>
+          <label className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
+            <input
+              type="checkbox"
+              checked={privacy.isHidden}
+              onChange={() => updatePreferences({ isHidden: !privacy.isHidden })}
+              disabled={privacySaving}
+              style={{ marginTop: 4 }}
+            />
+            <div className="col" style={{ gap: 4 }}>
+              <span style={{ fontWeight: 600 }}>{t('profile.visibility.hide','Hide my profile')}</span>
+              <span style={{ fontSize: 12, color: '#9aa0a6' }}>
+                {t('profile.visibility.hideHelp','You will be hidden from discovery and matches unless a moderator reviews your account.')}
+              </span>
+            </div>
+          </label>
+          <label className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
+            <input
+              type="checkbox"
+              checked={privacy.pauseAccount}
+              onChange={() => updatePreferences({ pauseAccount: !privacy.pauseAccount })}
+              disabled={privacySaving}
+              style={{ marginTop: 4 }}
+            />
+            <div className="col" style={{ gap: 4 }}>
+              <span style={{ fontWeight: 600 }}>{t('profile.visibility.pause','Pause account')}</span>
+              <span style={{ fontSize: 12, color: '#9aa0a6' }}>
+                {t('profile.visibility.pauseHelp','Pausing stops new matches and hides you from discovery until you resume.')}
+              </span>
+            </div>
+          </label>
+          {privacyErr && <span className="pill" style={{ color: '#ff8b8b' }}>{privacyErr}</span>}
+          {privacySaving && !privacyErr && <span style={{ fontSize: 12, color: '#9aa0a6' }}>{t('profile.visibility.saving','Saving visibility preferences...')}</span>}
         </div>
+
+        <div className="row" style={{justifyContent:'space-between',alignItems:'flex-start', flexWrap:'wrap', gap:12}}>
+          <div className="col" style={{gap:6}}>
+            <button className="btn secondary" onClick={useMyLocation}>{t('profile.useLocation','Use my location')}</button>
+            {saveNotice && <span className="pill">{saveNotice}</span>}
+            {lastSavedAt && (
+              <small style={{color:'#9aa0a6'}}>
+                {t('profile.lastSaved','Last saved {time}', { time: lastSavedAt.toLocaleTimeString() })}
+              </small>
+            )}
+          </div>
+          <div className="col" style={{gap:6, alignItems:'flex-end'}}>
+            {err && <div className="pill" style={{color:'#ff8b8b'}}>{err}</div>}
+            <button className="btn" disabled={saving} onClick={save}>
+              {saving ? t('profile.saving','Saving...') : t('profile.save','Save profile')}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="card col">
+        <div className="row" style={{justifyContent:'space-between', alignItems:'center', flexWrap:'wrap'}}>
+          <strong>{t('profile.blocked.title','Blocked users')}</strong>
+          <button className="btn secondary" onClick={loadBlockedUsers} disabled={blockedLoading}>
+            {blockedLoading ? t('common.loading','Loading...') : t('profile.blocked.refresh','Refresh')}
+          </button>
+        </div>
+        {blockedError && <div className="pill" style={{color:'#ff8b8b'}}>{blockedError}</div>}
+        {blockedLoading ? (
+          <div className="pill secondary">{t('profile.blocked.loading','Fetching blocked profiles...')}</div>
+        ) : blockedUsers.length ? (
+          <div className="col" style={{ gap: 12 }}>
+            {blockedUsers.map(block => (
+              <div key={block.id || block.toId} className="row" style={{ justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:12 }}>
+                <div className="row" style={{ gap:12, alignItems:'center', flex:1 }}>
+                  <img
+                    src={assetUrl((block.photos && block.photos[0]) || block.selfiePath || '')}
+                    alt={block.displayName || t('profile.blocked.unknown','Deleted user')}
+                    style={{ width:56, height:56, borderRadius:'50%', objectFit:'cover', border:'1px solid var(--border)' }}
+                  />
+                  <div className="col" style={{ gap:4 }}>
+                    <div style={{ fontWeight:600 }}>{block.displayName || t('profile.blocked.unknown','Deleted user')}</div>
+                    {block.createdAt && (
+                      <small className="text-muted">
+                        {t('profile.blocked.since','Blocked {time}', { time: formatDateTime(block.createdAt) })}
+                      </small>
+                    )}
+                  </div>
+                </div>
+                <button className="btn secondary" onClick={() => unblockUser(block.toId)}>
+                  {t('profile.blocked.unblock','Unblock')}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-muted">{t('profile.blocked.empty','You have not blocked anyone yet.')}</div>
+        )}
+      </div>
+
+      <div className="card col">
+        <div className="row" style={{justifyContent:'space-between', alignItems:'center', flexWrap:'wrap'}}>
+          <strong>{t('profile.reports.title','Your reports')}</strong>
+          <button className="btn secondary" onClick={loadReportHistory} disabled={reportsLoading}>
+            {reportsLoading ? t('common.loading','Loading...') : t('profile.reports.refresh','Refresh')}
+          </button>
+        </div>
+        {reportsError && <div className="pill" style={{color:'#ff8b8b'}}>{reportsError}</div>}
+        {reportsLoading ? (
+          <div className="pill secondary">{t('profile.reports.loading','Loading report history...')}</div>
+        ) : reportsHistory.length ? (
+          <div className="col" style={{ gap:12 }}>
+            {reportsHistory.map((report) => {
+              const statusKey = report.status || 'pending'
+              const statusVariant = statusKey === 'reviewed' ? 'success' : 'warning'
+              return (
+                <div key={report.id} className="col" style={{ gap:8, borderBottom:'1px solid var(--border)', paddingBottom:12 }}>
+                  <div className="row" style={{ gap:8, flexWrap:'wrap', alignItems:'center' }}>
+                    <div style={{ fontWeight:600 }}>
+                      {report.reportedName || t('profile.reports.unknown','Deleted user')}
+                    </div>
+                    <span className={`pill ${statusVariant}`}>
+                      {t(`profile.reports.status.${statusKey}`, statusKey)}
+                    </span>
+                    <span className="pill secondary">
+                      {t(`report.category.${report.category}`, report.category)}
+                    </span>
+                    {report.action && (
+                      <span className="pill secondary">
+                        {t(`profile.reports.action.${report.action}`, report.action)}
+                      </span>
+                    )}
+                  </div>
+                  {report.reason && <small className="text-muted">{report.reason}</small>}
+                  {report.createdAt && (
+                    <small className="text-muted">
+                      {t('profile.reports.submitted','Submitted {time}', { time: formatDateTime(report.createdAt) })}
+                    </small>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-muted">{t('profile.reports.empty','You have not submitted any reports yet.')}</div>
+        )}
+      </div>
+
+      <div className="card col">
+        <strong>{t('profile.safety.title','Safety tips')}</strong>
+        <ul style={{ margin:0, paddingLeft:'1.2rem', color:'#9aa0a6', lineHeight:1.5 }}>
+          {safetyTips.map((tip, idx) => (
+            <li key={idx}>{tip}</li>
+          ))}
+        </ul>
+        <small className="text-muted">{t('profile.safety.learnMore','Need more advice? Visit the Community Rules for detailed guidance.')}</small>
       </div>
     </div>
   )
+}
+
+function formatDateTime(value) {
+  if (!value) return ''
+  try {
+    return new Date(value).toLocaleString()
+  } catch {
+    return ''
+  }
+}
+
+function getSelfieStatusMeta(status, t) {
+  switch (status) {
+    case 'approved':
+      return { label: t('profile.selfie.status.approved', 'Verified selfie'), variant: 'success' }
+    case 'pending':
+      return { label: t('profile.selfie.status.pending', 'Pending review'), variant: 'warning' }
+    case 'rejected':
+      return { label: t('profile.selfie.status.rejected', 'Needs attention'), variant: 'error' }
+    default:
+      return { label: t('profile.selfie.status.none', 'No selfie on file'), variant: 'secondary' }
+  }
 }
 
 function formatDurationShort(ms){

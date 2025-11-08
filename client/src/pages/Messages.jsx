@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { api, assetUrl } from '../api'
 import { useTranslation } from '../i18n/LanguageContext'
 import { io } from 'socket.io-client'
+import ModBadge from '../components/ModBadge'
+import ReportDialog from '../components/ReportDialog'
 
 const SOCKET_BASE = (import.meta.env.VITE_SOCKET_BASE || import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')
 
@@ -15,7 +17,30 @@ const formatTime = (ts) => {
   }
 }
 
-export default function Messages(){
+const formatDate = (ts) => {
+  if (!ts) return ''
+  try {
+    const date = new Date(ts)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    if (date.toDateString() === today.toDateString()) return 'Today'
+    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  } catch {
+    return ''
+  }
+}
+
+const shouldShowDateSeparator = (currentMsg, prevMsg) => {
+  if (!prevMsg) return true
+  const currentDate = new Date(currentMsg.ts).toDateString()
+  const prevDate = new Date(prevMsg.ts).toDateString()
+  return currentDate !== prevDate
+}
+
+export default function Messages({ user }){
   const { t } = useTranslation()
   const { userId } = useParams()
   const [items,setItems] = useState([])
@@ -26,6 +51,7 @@ export default function Messages(){
   const typingRef = useRef(null)
   const [err,setErr] = useState('')
   const listRef = useRef(null)
+  const [showReport,setShowReport] = useState(false)
 
   useEffect(()=>{
     let cancelled = false
@@ -55,7 +81,9 @@ export default function Messages(){
         socket.on('typing', ({ fromId, typing })=>{
           if (fromId===userId) setTyping(!!typing)
         })
-      } catch {}
+      } catch (err) {
+        console.error('Failed to connect to socket:', err);
+      }
     })()
     return ()=>{
       cancelled = true
@@ -80,6 +108,9 @@ export default function Messages(){
       const msg = await api('/api/messages/'+userId, { method:'POST', body:{ text } })
       setItems(prev=>[...prev, msg])
       setText('')
+      if (socketRef.current) {
+        socketRef.current.emit('typing', { toId: userId, typing: false })
+      }
     } catch(e){ setErr(e.message) }
   }
 
@@ -94,6 +125,13 @@ export default function Messages(){
     }, 800)
   }
 
+  function onKeyPress(e){
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      send()
+    }
+  }
+
   const partnerMeta = (()=>{
     if (!partner) return ''
     const bits = []
@@ -106,76 +144,156 @@ export default function Messages(){
   })()
 
   return (
-    <div className="col" style={{gap:16}}>
-      <h2>{t('messages.title','Messages')}</h2>
+    <div className="chat-container">
+      {/* Chat Header */}
       {partner && (
         <Link
           to={`/members/${partner.id}`}
-          className="card row"
-          style={{ alignItems:'center', gap:12, textDecoration:'none' }}
+          className="chat-header"
         >
-          <div
-            style={{
-              width:56,
-              height:56,
-              borderRadius:'50%',
-              background:'#2f2f2f',
-              border:'2px solid rgba(255,255,255,0.15)',
-              overflow:'hidden',
-              flexShrink:0,
-              display:'flex',
-              alignItems:'center',
-              justifyContent:'center'
-            }}
-          >
+          <div className="chat-avatar">
             {partner.avatar ? (
               <img
                 src={assetUrl(partner.avatar)}
                 alt={partner.displayName}
-                style={{width:'100%',height:'100%',objectFit:'cover'}}
               />
             ) : (
-              <span style={{color:'#9aa0a6',fontSize:20}} aria-hidden="true">??</span>
+              <span className="avatar-placeholder">??</span>
             )}
           </div>
-          <div className="col" style={{gap:4}}>
-            <div style={{fontWeight:600,fontSize:18,color:'#f1f3f4'}}>{partner.displayName}</div>
-            {partnerMeta && <div style={{fontSize:12,color:'#9aa0a6'}}>{partnerMeta}</div>}
-            <small style={{color:'#62a0ff',textDecoration:'underline'}}>
-              {t('messages.viewProfile','View profile')}
-            </small>
+          <div className="chat-header-info">
+            <div className="chat-header-name">
+              {partner.displayName}
+              <ModBadge isModerator={partner.isModerator} size="xs" />
+            </div>
+            {partnerMeta && <div className="chat-header-meta">{partnerMeta}</div>}
+          </div>
+          <div className="chat-header-action">
+            {t('messages.viewProfile','View profile')} →
           </div>
         </Link>
       )}
-      {err && <div className="pill" style={{color:'#ff8b8b'}}>{err}</div>}
-      <div ref={listRef} className="card col" style={{height:'60vh',overflowY:'auto',padding:8}}>
-        {items.map(m=> {
+
+      {partner && (
+        <div className="row" style={{ justifyContent:'flex-end', margin:'var(--space-md) 0' }}>
+          <button className="btn secondary" type="button" onClick={() => setShowReport(true)}>
+            {t('actions.report','Report')}
+          </button>
+        </div>
+      )}
+
+      {showReport && partner && (
+        <ReportDialog
+          userId={partner.id}
+          userName={partner.displayName}
+          onClose={() => setShowReport(false)}
+          onSuccess={() => setShowReport(false)}
+        />
+      )}
+
+      {err && (
+        <div className="pill" style={{
+          background: 'var(--error-bg)',
+          color: 'var(--error)',
+          borderColor: 'var(--error)',
+          margin: 'var(--space-md)',
+          padding: 'var(--space-md)'
+        }}>
+          {err}
+        </div>
+      )}
+
+      {/* Messages Area */}
+      <div ref={listRef} className="chat-messages">
+        {items.length === 0 && !typing && (
+          <div className="chat-empty-state">
+            <div style={{ fontSize: '3rem', marginBottom: 'var(--space-md)' }}>💬</div>
+            <div style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: 'var(--space-sm)' }}>
+              {t('messages.empty.title', 'Start a conversation')}
+            </div>
+            <div className="text-muted">
+              {t('messages.empty.subtitle', 'Say hi and introduce yourself!')}
+            </div>
+          </div>
+        )}
+
+        {items.map((m, idx)=> {
           const isPartner = m.fromId === userId
-          const bubbleColor = m.gender === 'woman' ? '#ff7ad9' : '#4da6ff'
+          const showDate = shouldShowDateSeparator(m, items[idx - 1])
+          const prevSameSender = idx > 0 && items[idx - 1].fromId === m.fromId
+          const nextSameSender = idx < items.length - 1 && items[idx + 1].fromId === m.fromId
+
           return (
-            <div key={m.id} style={{textAlign: isPartner? 'left':'right', marginBottom: 10}}>
-              <div style={{ fontSize: 12, color: '#9aa0a6', marginBottom: 4 }}>
-                <strong>{m.displayName || t('rooms.member','Member')}</strong> | {formatTime(m.ts)}
+            <div key={m.id}>
+              {showDate && (
+                <div className="chat-date-separator">
+                  <span>{formatDate(m.ts)}</span>
+                </div>
+              )}
+              <div className={`chat-message ${isPartner ? 'partner' : 'me'}`}>
+                {isPartner && !prevSameSender && (
+                  <div className="chat-message-avatar">
+                    {partner?.avatar ? (
+                      <img src={assetUrl(partner.avatar)} alt={partner.displayName} />
+                    ) : (
+                      <span>?</span>
+                    )}
+                  </div>
+                )}
+                {isPartner && prevSameSender && <div className="chat-message-avatar-spacer" />}
+
+                <div className="chat-message-content">
+                  {isPartner && !prevSameSender && (
+                    <div className="chat-message-sender">{m.displayName}</div>
+                  )}
+                  <div className={`chat-bubble ${isPartner ? 'partner' : 'me'} ${user?.gender === 'man' ? 'man' : ''} ${!nextSameSender ? 'last' : ''}`}>
+                    {m.text}
+                  </div>
+                  <div className="chat-message-time">
+                    {formatTime(m.ts)}
+                    {m.readAt && !isPartner && (
+                      <span className="chat-read-receipt"> · {t('messages.read','Read')}</span>
+                    )}
+                  </div>
+                </div>
               </div>
-              <span
-                className="pill"
-                style={{
-                  background: bubbleColor,
-                  color:'#ffffff',
-                  textShadow:'0 0 2px rgba(255,255,255,0.95)',
-                  border:'1px solid rgba(255,255,255,0.25)'
-                }}
-              >
-                {m.text}
-              </span>
-              {m.readAt && !isPartner && <small className="pill" style={{marginLeft:6}}>{t('messages.read','Read')}</small>}
             </div>
         )})}
-        {typing && <div style={{textAlign:'left'}}><small className="pill">{t('messages.typing','Typing...')}</small></div>}
+
+        {typing && (
+          <div className="chat-message partner">
+            <div className="chat-message-avatar">
+              {partner?.avatar ? (
+                <img src={assetUrl(partner.avatar)} alt={partner.displayName} />
+              ) : (
+                <span>?</span>
+              )}
+            </div>
+            <div className="chat-typing-indicator">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        )}
       </div>
-      <div className="row">
-        <input style={{flex:1}} value={text} onChange={onInput} placeholder={t('messages.input.placeholder','Write a message...')} />
-        <button className="btn" onClick={send}>{t('messages.send','Send')}</button>
+
+      {/* Input Area */}
+      <div className="chat-input-container">
+        <input
+          className="chat-input"
+          value={text}
+          onChange={onInput}
+          onKeyPress={onKeyPress}
+          placeholder={t('messages.input.placeholder','Type a message...')}
+        />
+        <button
+          className="btn chat-send-button"
+          onClick={send}
+          disabled={!text.trim()}
+        >
+          {t('messages.send','Send')} ▸
+        </button>
       </div>
     </div>
   )

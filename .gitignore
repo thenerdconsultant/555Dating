@@ -1,11 +1,49 @@
+# Dependencies
 node_modules/
 client/node_modules/
 server/node_modules/
 mobile/node_modules/
+
+# Build outputs
 client/dist/
+server/dist/
+
+# Uploads and user data
 server/uploads/
-server/src/dev.db
-.DS_Store
-npm-debug.log*
+
+# Database files - NEVER commit these
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+db.json
+
+# Environment and secrets
 .env
+.env.local
+.env.production
+.env.development
+server/.env
+server/.env.local
+
+# Temporary files
 *.tmp
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Duplicate directories from refactoring
+src/

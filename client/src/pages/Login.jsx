@@ -7,15 +7,34 @@ export default function Login({ onAuthed }){
   const [email,setEmail] = useState('')
   const [password,setPassword] = useState('')
   const [err,setErr] = useState('')
+  const [loading,setLoading] = useState(false)
+  const [googleLoading,setGoogleLoading] = useState(false)
   const nav = useNavigate()
   const { t } = useTranslation()
 
   async function submit(e){
     e.preventDefault(); setErr('')
+    setLoading(true)
     try {
       const user = await api('/api/auth/login', { method:'POST', body:{ email, password } })
       onAuthed(user); nav('/discover')
     } catch (e) { setErr(e.message) }
+    finally { setLoading(false) }
+  }
+
+  async function startGoogle(){
+    setErr(''); setGoogleLoading(true)
+    try {
+      const res = await api('/api/auth/google/start')
+      if (res?.url) {
+        window.location.href = res.url
+      } else {
+        throw new Error('Missing redirect URL')
+      }
+    } catch (e) {
+      setErr(e.message)
+      setGoogleLoading(false)
+    }
   }
 
   return (
@@ -30,9 +49,22 @@ export default function Login({ onAuthed }){
           <label>{t('login.password','Password')}</label>
           <input value={password} onChange={e=>setPassword(e.target.value)} type="password" required />
         </div>
+        <div style={{textAlign:'right', fontSize:13}}>
+          <Link to="/forgot">{t('login.forgot','Forgot password?')}</Link>
+        </div>
         {err && <div className="pill" style={{color:'#ff8b8b'}}>{err}</div>}
-        <button className="btn">{t('login.submit','Login')}</button>
+        <button className="btn" disabled={loading}>
+          {loading ? t('login.submitting','Logging in...') : t('login.submit','Login')}
+        </button>
       </form>
+      <button
+        className="btn secondary"
+        type="button"
+        onClick={startGoogle}
+        disabled={googleLoading}
+      >
+        {googleLoading ? t('login.googleLoading','Connecting to Google...') : t('login.google','Continue with Google')}
+      </button>
       <div>{t('login.registerPrompt','New here?')} <Link to="/register">{t('login.registerLink','Create an account')}</Link></div>
     </div>
   )

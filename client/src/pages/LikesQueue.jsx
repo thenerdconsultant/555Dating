@@ -3,6 +3,7 @@ import { api, assetUrl } from '../api'
 import { Link } from 'react-router-dom'
 import { useTranslation } from '../i18n/LanguageContext'
 import { languageNameFor } from '../constants/languages'
+import ModBadge from '../components/ModBadge'
 
 function formatRelative(value) {
   if (!value) return ''
@@ -89,7 +90,10 @@ export default function LikesQueue({ user }) {
         {items.map(person => (
           <div key={person.id} className="card col" style={{ gap: 10 }}>
             <img src={assetUrl((person.photos && person.photos[0]) || person.selfiePath || '')} className="thumb" />
-            <div style={{ fontWeight: 600 }}>{person.displayName} - {person.age}</div>
+            <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+              <span>{person.displayName} - {person.age}</span>
+              <ModBadge isModerator={person.isModerator} size="xs" />
+            </div>
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
               <span className="pill">{t(`common.gender.${person.gender}`, person.gender)}</span>
               {person.bodyType && <span className="pill">{t(`profile.bodyType.${person.bodyType}`, person.bodyType)}</span>}

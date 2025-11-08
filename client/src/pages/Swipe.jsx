@@ -3,6 +3,9 @@ import { api, assetUrl } from '../api'
 import { Link } from 'react-router-dom'
 import { languageNameFor } from '../constants/languages'
 import { useTranslation } from '../i18n/LanguageContext'
+import ModBadge from '../components/ModBadge'
+import VerifiedBadge from '../components/VerifiedBadge'
+import PhotoLightbox from '../components/PhotoLightbox'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -34,6 +37,8 @@ export default function Swipe({ user, onUpdateUser }) {
   const [match, setMatch] = useState(null)
   const [quota, setQuota] = useState(0)
   const [tick, setTick] = useState(Date.now())
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState(0)
   const { t } = useTranslation()
 
   useEffect(() => {
@@ -107,10 +112,25 @@ export default function Swipe({ user, onUpdateUser }) {
       {err && <div className="pill" style={{ color: '#ff8b8b' }}>{err}</div>}
       {!candidate && <div className="pill">{t('swipe.noMore', 'No more profiles. Check back later.')}</div>}
       {candidate && (
+        <>
         <div className="card col" style={{ maxWidth: 480, width: '100%', gap: 10 }}>
-          <img src={assetUrl((candidate.photos && candidate.photos[0]) || candidate.selfiePath || '')} className="thumb" />
+          <img
+            src={assetUrl((candidate.photos && candidate.photos[0]) || candidate.selfiePath || '')}
+            className="thumb photo-clickable"
+            onClick={() => {
+              const photos = candidate.photos || []
+              if (photos.length > 0) {
+                setLightboxIndex(0)
+                setLightboxOpen(true)
+              }
+            }}
+          />
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontWeight: 700, fontSize: 18 }}>{candidate.displayName} - {candidate.age}</div>
+            <div style={{ fontWeight: 700, fontSize: 18, display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+              <span>{candidate.displayName} - {candidate.age}</span>
+              <VerifiedBadge isVerified={!!candidate.selfiePath} size="sm" />
+              <ModBadge isModerator={candidate.isModerator} size="sm" />
+            </div>
             <small className="pill">{lastActiveLabel(candidate.lastActive)}</small>
           </div>
           <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
@@ -150,6 +170,15 @@ export default function Swipe({ user, onUpdateUser }) {
             {t('swipe.superLike', 'Super Like')} {quota ? t('swipe.superLikeRemaining', '({count} left)', { count: quota }) : t('swipe.superLikeNone', '(none left)')}
           </button>
         </div>
+
+        {lightboxOpen && candidate.photos && (
+          <PhotoLightbox
+            photos={candidate.photos}
+            initialIndex={lightboxIndex}
+            onClose={() => setLightboxOpen(false)}
+          />
+        )}
+        </>
       )}
 
       {match && (
