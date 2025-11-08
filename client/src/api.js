@@ -10,9 +10,8 @@ export function assetUrl(path) {
   if (!path) return ''
   if (/^https?:\/\//i.test(path)) return path
   const normalized = path.startsWith('/') ? path : `/${path}`
-  // In production, /uploads/* is proxied by Netlify, so return the path as-is
-  // This avoids CORS issues and uses Netlify's redirect proxy
-  if (normalized.startsWith('/uploads/')) return normalized
+  // In production with API_BASE set, return full backend URL
+  // CORS is configured on backend to allow requests from Netlify domain
   if (!API_BASE) return normalized
   return `${API_BASE}${normalized}`
 }
