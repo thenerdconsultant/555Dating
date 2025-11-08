@@ -1418,6 +1418,115 @@ app.post('/api/admin/reports/:id/review', authMiddleware, requireModerator, (req
   res.json({ ok: true });
 });
 
+// Fix photo paths in database (one-time admin endpoint)
+app.post('/api/admin/fix-photos', authMiddleware, requireModerator, (req, res) => {
+  try {
+    const users = db.prepare('SELECT id, photos, selfiePath FROM users WHERE photos IS NOT NULL OR selfiePath IS NOT NULL').all();
+
+    let fixedCount = 0;
+    let removedCount = 0;
+    const results = [];
+
+    for (const user of users) {
+      let needsUpdate = false;
+      let updatedPhotos = [];
+      let updatedSelfie = user.selfiePath;
+
+      // Fix photos array
+      if (user.photos) {
+        try {
+          const photos = JSON.parse(user.photos);
+          if (Array.isArray(photos)) {
+            for (const photo of photos) {
+              let normalized = photo;
+
+              // Strip full URLs (http://localhost:4000/uploads/photo.jpg -> /uploads/photo.jpg)
+              if (photo.includes('://')) {
+                const urlMatch = photo.match(/\/uploads\/[^\/]+$/);
+                if (urlMatch) {
+                  normalized = urlMatch[0];
+                  needsUpdate = true;
+                } else {
+                  continue; // Skip invalid URLs
+                }
+              }
+
+              // Ensure /uploads/ prefix
+              if (!normalized.startsWith('/uploads/')) {
+                normalized = '/uploads/' + normalized.replace(/^\/+/, '');
+                needsUpdate = true;
+              }
+
+              // Check if file exists
+              const filePath = path.join(__dirname, '..', normalized);
+              if (fs.existsSync(filePath)) {
+                updatedPhotos.push(normalized);
+              } else {
+                removedCount++;
+                needsUpdate = true;
+              }
+            }
+          }
+        } catch (e) {
+          results.push({ userId: user.id, error: `Failed to parse photos: ${e.message}` });
+        }
+      }
+
+      // Fix selfie path
+      if (user.selfiePath) {
+        let normalized = user.selfiePath;
+
+        // Strip full URLs
+        if (normalized.includes('://')) {
+          const urlMatch = normalized.match(/\/uploads\/[^\/]+$/);
+          if (urlMatch) {
+            normalized = urlMatch[0];
+            needsUpdate = true;
+          }
+        }
+
+        // Ensure /uploads/ prefix
+        if (!normalized.startsWith('/uploads/')) {
+          normalized = '/uploads/' + normalized.replace(/^\/+/, '');
+          needsUpdate = true;
+        }
+
+        // Check if file exists
+        const filePath = path.join(__dirname, '..', normalized);
+        if (!fs.existsSync(filePath)) {
+          normalized = null;
+          removedCount++;
+          needsUpdate = true;
+        }
+
+        updatedSelfie = normalized;
+      }
+
+      // Update database if needed
+      if (needsUpdate) {
+        db.prepare('UPDATE users SET photos=?, selfiePath=? WHERE id=?')
+          .run(JSON.stringify(updatedPhotos), updatedSelfie, user.id);
+        results.push({
+          userId: user.id,
+          photos: updatedPhotos.length,
+          selfie: updatedSelfie ? 'fixed' : 'removed'
+        });
+        fixedCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      fixedUsers: fixedCount,
+      removedFiles: removedCount,
+      totalUsers: users.length,
+      details: results
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/billing/checkout', authMiddleware, async (req, res) => {
   if (!stripe || !STRIPE_MONTHLY_PRICE_ID || !STRIPE_YEARLY_PRICE_ID) {
     return res.status(503).json({ error: 'Billing not configured' });
