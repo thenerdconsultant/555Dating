@@ -69,10 +69,10 @@ export default function App(){
   return (
     <div className="container">
       <header className="toolbar">
-        <Link to="/" style={{fontWeight:700, fontSize: '1.125rem'}}>{t('app.title','555Dating')}</Link>
-        <div className="row" style={{alignItems:'center', gap:'var(--space-md)', position:'relative'}}>
+        <Link to="/" style={{fontWeight:700, fontSize: '1.125rem', whiteSpace: 'nowrap'}}>{t('app.title','555Dating')}</Link>
+        <div className="row" style={{alignItems:'center', gap:'var(--space-sm)', position:'relative', flex: 1, justifyContent: 'flex-end'}}>
           {user && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', flexWrap: 'wrap' }}>
               <span className="pill">{user.displayName}</span>
               {user.roles?.moderator && (
                 <span className="pill" style={{
@@ -175,18 +175,19 @@ function SettingsMenu({ t, hasUser, onLogout, options, currentLanguage, onLangua
   return (
     <div ref={menuRef} style={{ position:'relative' }}>
       <button
-        className="btn secondary"
-        style={{display:'flex', alignItems:'center', gap:6}}
+        className="btn secondary settings-btn"
+        style={{display:'flex', alignItems:'center', gap:6, padding: 'var(--space-sm) var(--space-md)'}}
         onClick={()=>setOpen(o=>!o)}
         aria-haspopup="menu"
         aria-expanded={open}
         title={t('nav.settings','Settings')}
       >
         <span aria-hidden="true" style={{fontSize:16}}>⚙</span>
-        <span>{t('nav.settings','Settings')}</span>
+        <span className="settings-text">{t('nav.settings','Settings')}</span>
       </button>
       {open && (
         <div
+          className="settings-menu"
           style={{
             position:'absolute',
             right:0,

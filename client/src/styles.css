@@ -175,6 +175,12 @@ input, select, button, textarea {
   justify-content: space-between;
   padding: var(--space-sm) 0;
   margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.toolbar .row {
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 /* Cards */
@@ -1145,6 +1151,46 @@ html {
   transform: scale(1.02);
 }
 
+/* Discover Filters */
+.discover-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.age-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.discover-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+@media (min-width: 641px) {
+  .discover-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--space-md);
+  }
+
+  .age-inputs {
+    grid-column: span 1;
+  }
+
+  .discover-filter-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Card Actions - Better mobile layout */
+.card .row {
+  gap: var(--space-sm);
+}
+
 /* Mobile Optimizations */
 @media (max-width: 640px) {
   body {
@@ -1174,6 +1220,19 @@ html {
 
   .card {
     padding: var(--space-md);
+  }
+
+  .card .row {
+    flex-direction: column;
+  }
+
+  .card .row .btn {
+    width: 100%;
+  }
+
+  .discover-filter-actions .btn {
+    flex: 1;
+    min-width: max-content;
   }
 
   .nav {
@@ -1218,6 +1277,208 @@ html {
 
   .chat-message-content {
     max-width: 85%;
+  }
+
+  .toolbar {
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+  }
+
+  .toolbar .pill {
+    font-size: 0.8125rem;
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  /* Hide settings text on mobile, show icon only */
+  .settings-btn .settings-text {
+    display: none;
+  }
+
+  .settings-btn {
+    padding: var(--space-xs) var(--space-sm) !important;
+    min-width: 36px;
+  }
+
+  .pill {
+    font-size: 0.8125rem;
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  /* Member profile photo grid - smaller thumbnails on mobile */
+  .photo-thumbnail-grid {
+    gap: 6px;
+  }
+
+  .photo-thumbnail-grid img {
+    width: 72px !important;
+    height: 72px !important;
+  }
+
+  /* Swipe page - full width buttons */
+  .swipe-actions.row {
+    /* Keep Yes/No buttons side by side */
+    flex-direction: row !important;
+  }
+
+  .swipe-actions.row .btn {
+    width: auto;
+  }
+
+  .swipe-actions:not(.row) {
+    width: 100%;
+  }
+
+  /* Better spacing for form fields on mobile */
+  .field {
+    gap: var(--space-xs);
+  }
+
+  .field label {
+    font-size: 0.8125rem;
+  }
+
+  /* Settings menu positioning */
+  .settings-menu {
+    right: 0;
+    left: auto;
+    max-width: calc(100vw - 32px);
+  }
+
+  /* Grid layout improvements */
+  .grid {
+    gap: var(--space-md);
+  }
+
+  /* Better modal sizing on mobile */
+  .modal-content {
+    padding: var(--space-lg);
+    max-width: calc(100vw - 32px);
+  }
+
+  /* Improve onboarding on mobile */
+  .onboarding-container {
+    padding: var(--space-md);
+  }
+
+  /* Better admin table handling */
+  .admin-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-table {
+    font-size: 0.875rem;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: var(--space-sm);
+    white-space: nowrap;
+  }
+
+  /* Footer improvements */
+  footer {
+    margin-top: var(--space-lg) !important;
+    font-size: 0.75rem !important;
+    flex-wrap: wrap;
+  }
+
+  /* Better card spacing */
+  .card.col {
+    gap: var(--space-sm);
+  }
+
+  /* Improve matches/inbox items */
+  .inbox-item {
+    padding: var(--space-sm);
+  }
+
+  .inbox-avatar {
+    width: 48px;
+    height: 48px;
+  }
+
+  /* Better profile card sizing */
+  .card[style*="max-width: 480px"] {
+    max-width: 100% !important;
+  }
+
+  /* Form rows should stack on mobile */
+  form .row {
+    flex-direction: column;
+  }
+
+  form .row .field {
+    width: 100%;
+  }
+
+  /* Images should never overflow */
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Better link wrapping */
+  a {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* Improve checkbox label layout */
+  label.row {
+    flex-direction: row !important;
+    align-items: flex-start;
+  }
+
+  /* Better heading sizes for small screens */
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.125rem;
+  }
+
+  /* Improve content padding for very small screens */
+  .container {
+    padding: var(--space-sm);
+  }
+}
+
+/* Extra small screens (like iPhone SE) */
+@media (max-width: 380px) {
+  body {
+    font-size: 14px;
+  }
+
+  h1 {
+    font-size: 1.375rem;
+  }
+
+  h2 {
+    font-size: 1rem;
+  }
+
+  .btn {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 0.8125rem;
+  }
+
+  .toolbar {
+    gap: var(--space-xs);
+  }
+
+  .container {
+    padding: var(--space-xs);
+  }
+
+  .card {
+    padding: var(--space-sm);
+  }
+
+  .nav a {
+    font-size: 0.75rem;
+    padding: var(--space-xs);
   }
 }
 
@@ -1277,6 +1538,34 @@ html {
 
   .lightbox-thumbnails {
     max-width: 70vw;
+  }
+
+  /* Reduce vertical spacing in landscape */
+  .container {
+    padding-top: var(--space-sm);
+    padding-bottom: var(--space-sm);
+  }
+
+  h2 {
+    font-size: 1.125rem;
+    margin-bottom: var(--space-sm);
+  }
+
+  .card {
+    padding: var(--space-sm);
+  }
+}
+
+/* Safe area insets for devices with notches */
+@supports (padding: env(safe-area-inset-top)) {
+  .container {
+    padding-left: max(var(--space-lg), env(safe-area-inset-left));
+    padding-right: max(var(--space-lg), env(safe-area-inset-right));
+  }
+
+  .nav {
+    padding-left: max(var(--space-md), env(safe-area-inset-left));
+    padding-right: max(var(--space-md), env(safe-area-inset-right));
   }
 }
 

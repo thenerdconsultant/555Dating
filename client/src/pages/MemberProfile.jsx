@@ -88,7 +88,7 @@ export default function MemberProfile({ viewer }) {
                 )}
               </div>
               {member.photos && member.photos.length > 1 && (
-                <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                <div className="row photo-thumbnail-grid" style={{ gap: 8, flexWrap: 'wrap' }}>
                   {member.photos.slice(1).map((photo, idx) => (
                     <img
                       key={photo}

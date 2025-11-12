@@ -8,7 +8,6 @@ export default function Login({ onAuthed }){
   const [password,setPassword] = useState('')
   const [err,setErr] = useState('')
   const [loading,setLoading] = useState(false)
-  const [googleLoading,setGoogleLoading] = useState(false)
   const nav = useNavigate()
   const { t } = useTranslation()
 
@@ -20,21 +19,6 @@ export default function Login({ onAuthed }){
       onAuthed(user); nav('/discover')
     } catch (e) { setErr(e.message) }
     finally { setLoading(false) }
-  }
-
-  async function startGoogle(){
-    setErr(''); setGoogleLoading(true)
-    try {
-      const res = await api('/api/auth/google/start')
-      if (res?.url) {
-        window.location.href = res.url
-      } else {
-        throw new Error('Missing redirect URL')
-      }
-    } catch (e) {
-      setErr(e.message)
-      setGoogleLoading(false)
-    }
   }
 
   return (
@@ -57,14 +41,6 @@ export default function Login({ onAuthed }){
           {loading ? t('login.submitting','Logging in...') : t('login.submit','Login')}
         </button>
       </form>
-      <button
-        className="btn secondary"
-        type="button"
-        onClick={startGoogle}
-        disabled={googleLoading}
-      >
-        {googleLoading ? t('login.googleLoading','Connecting to Google...') : t('login.google','Continue with Google')}
-      </button>
       <div>{t('login.registerPrompt','New here?')} <Link to="/register">{t('login.registerLink','Create an account')}</Link></div>
     </div>
   )

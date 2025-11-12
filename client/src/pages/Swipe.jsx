@@ -156,17 +156,17 @@ export default function Swipe({ user, onUpdateUser }) {
             </div>
           ) : null}
           {candidate.bio && <p style={{ margin: 0, color: '#9aa0a6' }}>{candidate.bio}</p>}
-          <div className="row" style={{ gap: 10, justifyContent: 'space-between' }}>
+          <div className="row swipe-actions" style={{ gap: 10, justifyContent: 'space-between' }}>
             <button className="btn secondary" onClick={pass} style={{ flex: 1 }}>{t('swipe.no', 'No')}</button>
             <button className="btn" onClick={like} style={{ flex: 1 }}>{t('swipe.yes', 'Yes')}</button>
           </div>
-          <button className="btn secondary" onClick={rewind} disabled={!canRewind}>
+          <button className="btn secondary swipe-actions" onClick={rewind} disabled={!canRewind}>
             {canRewind
               ? t('swipe.rewind', 'Rewind (1/day)')
               : t('swipe.rewindWait', 'Rewind ({time} left)', { time: formatDuration(cooldownMs) })
             }
           </button>
-          <button className="btn" onClick={superLike} disabled={!quota}>
+          <button className="btn swipe-actions" onClick={superLike} disabled={!quota}>
             {t('swipe.superLike', 'Super Like')} {quota ? t('swipe.superLikeRemaining', '({count} left)', { count: quota }) : t('swipe.superLikeNone', '(none left)')}
           </button>
         </div>

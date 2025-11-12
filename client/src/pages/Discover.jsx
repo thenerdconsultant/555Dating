@@ -140,25 +140,25 @@ export default function Discover({ user }) {
   return (
     <div className="col" style={{ gap: 16 }}>
       <h2>{t('discover.title','Discover')}</h2>
-      <div className="card row" style={{ flexWrap: 'wrap', gap: 10 }}>
+      <div className="card discover-filters">
         <select value={filters.gender} onChange={e => setF('gender', e.target.value)}>
           <option value="">{t('discover.filters.gender', 'Any gender')}</option>
           {allowedGenderOptions.includes('man') && <option value="man">{t('common.gender.man', 'Men')}</option>}
           {allowedGenderOptions.includes('woman') && <option value="woman">{t('common.gender.woman', 'Women')}</option>}
           {allowedGenderOptions.includes('ladyboy') && <option value="ladyboy">{t('common.gender.ladyboy', 'Ladyboy')}</option>}
         </select>
-        <input
-          placeholder={t('discover.filters.minAge', 'Min age')}
-          style={{ width: 90 }}
-          value={filters.minAge}
-          onChange={e => setF('minAge', e.target.value)}
-        />
-        <input
-          placeholder={t('discover.filters.maxAge', 'Max age')}
-          style={{ width: 90 }}
-          value={filters.maxAge}
-          onChange={e => setF('maxAge', e.target.value)}
-        />
+        <div className="age-inputs">
+          <input
+            placeholder={t('discover.filters.minAge', 'Min age')}
+            value={filters.minAge}
+            onChange={e => setF('minAge', e.target.value)}
+          />
+          <input
+            placeholder={t('discover.filters.maxAge', 'Max age')}
+            value={filters.maxAge}
+            onChange={e => setF('maxAge', e.target.value)}
+          />
+        </div>
         <input
           placeholder={t('discover.filters.location', 'Location')}
           value={filters.location}
@@ -185,13 +185,14 @@ export default function Discover({ user }) {
         </select>
         <input
           placeholder={t('discover.filters.radius', 'Radius (km)')}
-          style={{ width: 110 }}
           value={filters.radiusKm}
           onChange={e => setF('radiusKm', e.target.value)}
         />
-        <button className="btn secondary" onClick={useMyLocation}>{t('discover.useLocation', 'Use my location')}</button>
-        <button className="btn secondary" onClick={() => load(1, false)}>{t('discover.apply', 'Apply')}</button>
-        <button className="btn secondary" onClick={resetFilters}>{t('discover.clear', 'Clear filters')}</button>
+        <div className="discover-filter-actions">
+          <button className="btn secondary" onClick={useMyLocation}>{t('discover.useLocation', 'Use my location')}</button>
+          <button className="btn secondary" onClick={() => load(1, false)}>{t('discover.apply', 'Apply')}</button>
+          <button className="btn secondary" onClick={resetFilters}>{t('discover.clear', 'Clear filters')}</button>
+        </div>
       </div>
 
       {(activeFilterSummaries.length > 0 || lastApplied) && (

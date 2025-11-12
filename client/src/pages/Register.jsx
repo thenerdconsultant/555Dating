@@ -8,7 +8,6 @@ export default function Register({ onAuthed }){
   const [form,setForm] = useState({ email:'', password:'', displayName:'', birthdate:'', gender:'man', termsAccepted:false })
   const [err,setErr] = useState('')
   const [loading,setLoading] = useState(false)
-  const [googleLoading,setGoogleLoading] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [registeredUser, setRegisteredUser] = useState(null)
   const nav = useNavigate()
@@ -48,20 +47,6 @@ export default function Register({ onAuthed }){
         onSkip={handleOnboardingSkip}
       />
     )
-  }
-  async function startGoogle(){
-    setErr(''); setGoogleLoading(true)
-    try {
-      const res = await api('/api/auth/google/start')
-      if (res?.url) {
-        window.location.href = res.url
-      } else {
-        throw new Error('Missing redirect URL')
-      }
-    } catch (e) {
-      setErr(e.message)
-      setGoogleLoading(false)
-    }
   }
   return (
     <div className="col" style={{gap:16}}>
@@ -104,14 +89,6 @@ export default function Register({ onAuthed }){
           {loading ? t('register.submitting','Creating account...') : t('register.submit','Create account')}
         </button>
       </form>
-      <button
-        className="btn secondary"
-        type="button"
-        onClick={startGoogle}
-        disabled={googleLoading}
-      >
-        {googleLoading ? t('login.googleLoading','Connecting to Google...') : t('register.google','Continue with Google')}
-      </button>
       <div>{t('register.haveAccount','Already have an account?')} <Link to="/login">{t('register.loginLink','Log in')}</Link></div>
     </div>
   )
