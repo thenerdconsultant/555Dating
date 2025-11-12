@@ -177,17 +177,18 @@ input, select, button, textarea {
   margin-bottom: var(--space-lg);
   flex-wrap: wrap;
   position: relative;
-  z-index: 100;
+  z-index: 200;
 }
 
 .toolbar .row {
   flex-wrap: wrap;
   align-items: center;
+  position: relative;
 }
 
-/* Settings menu should always appear on top */
+/* Settings menu should always appear on top of everything */
 .settings-menu {
-  z-index: 1001 !important;
+  z-index: 2000 !important;
   position: absolute;
 }
 
@@ -1350,7 +1351,7 @@ html {
     right: 0;
     left: auto;
     max-width: calc(100vw - 32px);
-    z-index: 1001 !important;
+    z-index: 2000 !important;
   }
 
   /* Grid layout improvements */
