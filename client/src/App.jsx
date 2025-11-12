@@ -198,7 +198,7 @@ function SettingsMenu({ t, hasUser, onLogout, options, currentLanguage, onLangua
             padding:12,
             width:220,
             boxShadow:'0 8px 24px rgba(0,0,0,0.35)',
-            zIndex:20,
+            zIndex:1001,
             display:'flex',
             flexDirection:'column',
             gap:10

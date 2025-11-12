@@ -176,11 +176,19 @@ input, select, button, textarea {
   padding: var(--space-sm) 0;
   margin-bottom: var(--space-lg);
   flex-wrap: wrap;
+  position: relative;
+  z-index: 100;
 }
 
 .toolbar .row {
   flex-wrap: wrap;
   align-items: center;
+}
+
+/* Settings menu should always appear on top */
+.settings-menu {
+  z-index: 1001 !important;
+  position: absolute;
 }
 
 /* Cards */
@@ -1342,6 +1350,7 @@ html {
     right: 0;
     left: auto;
     max-width: calc(100vw - 32px);
+    z-index: 1001 !important;
   }
 
   /* Grid layout improvements */
