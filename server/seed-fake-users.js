@@ -14,7 +14,9 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'dating.db');
+// Use the same default path as the server (src/dev.db)
+const defaultDbPath = path.join(__dirname, 'src', 'dev.db');
+const DB_PATH = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : defaultDbPath;
 const count = parseInt(process.argv[2]) || 10;
 
 // Body types from your app
@@ -69,10 +71,10 @@ async function seedUsers() {
 
     const insertUser = db.prepare(`
       INSERT INTO users (
-        email, passwordHash, displayName, gender, birthdate,
+        id, email, passwordHash, displayName, gender, birthdate, age,
         location, education, bio, bodyType, heightCm, weightKg,
-        selfiePath, photos, languages, lastActive, emailVerified
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        selfiePath, photos, languages, lastActive, createdAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const created = [];
@@ -134,13 +136,19 @@ async function seedUsers() {
       // Last active (within last 7 days)
       const lastActive = Date.now() - faker.number.int({ min: 0, max: 7 * 24 * 60 * 60 * 1000 });
 
+      // Generate unique ID
+      const userId = faker.string.uuid();
+      const createdAt = new Date().toISOString();
+
       try {
         insertUser.run(
+          userId,
           email,
           passwordHash,
           displayName,
           gender,
           birthdateStr,
+          age,
           location,
           education,
           bio,
@@ -151,7 +159,7 @@ async function seedUsers() {
           photosJson,
           languagesJson,
           lastActive,
-          1 // emailVerified
+          createdAt
         );
 
         created.push({

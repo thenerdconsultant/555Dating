@@ -12,7 +12,9 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'dating.db');
+// Use the same default path as the server (src/dev.db)
+const defaultDbPath = path.join(__dirname, 'src', 'dev.db');
+const DB_PATH = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : defaultDbPath;
 
 const rl = readline.createInterface({
   input: process.stdin,
