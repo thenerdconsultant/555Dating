@@ -123,14 +123,11 @@ async function seedUsers() {
       // Email (test accounts have special prefix)
       const email = `test.${firstName.toLowerCase()}.${i}@example.com`;
 
-      // Fake selfie path (you can add real images later if needed)
-      const selfiePath = `/uploads/selfie-${faker.string.uuid()}.jpg`;
+      // No fake selfie or photos - let users upload real ones
+      const selfiePath = null;
 
-      // Fake photos (2-5 photos)
-      const numPhotos = faker.number.int({ min: 2, max: 5 });
-      const photos = Array.from({ length: numPhotos }, () =>
-        `/uploads/photo-${faker.string.uuid()}.jpg`
-      );
+      // Start with empty photos array so users can upload their own
+      const photos = [];
       const photosJson = JSON.stringify(photos);
 
       // Last active (within last 7 days)
