@@ -192,3 +192,13 @@ These scripts are for **development/testing only**. The test account email patte
 - Main README: `../README.md`
 - Deployment guide: `../DEPLOY_NOW.md`
 - Environment setup: `.env.example`
+
+## Production Readiness Checklist
+
+- **CORS locked down**: `CORS_ORIGIN` set to exact front-end origins (Render/Netlify). No wildcard.
+- **Secure cookies**: `COOKIE_SECURE=true`, `COOKIE_SAMESITE=none`, HTTPS front-end. Verify login/session across origins.
+- **Stripe configured**: `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` set; webhook endpoint reachable; checkout + webhook tested end-to-end.
+- **Uploads durable**: `UPLOADS_PATH` points to persistent disk or S3/GCS; test selfie/photo upload + retrieval after a restart.
+- **SMTP**: Outbound email creds set; verify password reset + email verification paths work.
+- **Rate limits**: Confirm general limiter doesn’t throttle normal flows; adjust if users see 429s on likes/messages.
+- **Push notifications**: VAPID keys present (if used); push subscribe/unsubscribe tested on a real browser.

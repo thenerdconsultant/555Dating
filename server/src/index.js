@@ -22,8 +22,14 @@ import db from './db.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// CORS configuration - set CORS_ORIGIN env var in production to restrict origins
-const CORS_ORIGIN = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()) : true;
+// App + security configuration
+const APP_BASE_URL = (process.env.APP_BASE_URL || 'http://localhost:5173').replace(/\/$/, '');
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+// CORS configuration - default to APP_BASE_URL if not set (restrict in production)
+const CORS_ORIGIN = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+  : [APP_BASE_URL];
 
 const app = express();
 app.set('trust proxy', 1);
@@ -61,15 +67,28 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Apply a moderate global limiter to reduce abuse/cost; scope to API only
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api')) return next();
+  if (req.path === '/api/billing/webhook') return next();
+  return generalLimiter(req, res, next);
+});
+
 // Configuration constants
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-555dating-secret';
-const UPLOADS_PATH = process.env.UPLOADS_PATH || path.join(__dirname, '..', 'uploads');
+const DEFAULT_UPLOADS_PATH = path.join(__dirname, '..', 'uploads');
+const UPLOADS_PATH = process.env.UPLOADS_PATH || DEFAULT_UPLOADS_PATH;
 const COOKIE_NAME = 'jwt';
-const COOKIE_SAMESITE = process.env.COOKIE_SAMESITE || 'lax';
-const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true';
+const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true' || (IS_PRODUCTION && APP_BASE_URL.startsWith('https://'));
+const COOKIE_SAMESITE = process.env.COOKIE_SAMESITE || (COOKIE_SECURE ? 'none' : 'lax');
 const BOOST_MINUTES = Number(process.env.BOOST_MINUTES || 15);
 const BOOST_DURATION_MS = BOOST_MINUTES * 60 * 1000;
 const REWIND_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+// Message throttle settings for free launch
+const MAX_CONSECUTIVE_MESSAGES = Number(process.env.MAX_CONSECUTIVE_MESSAGES || 2);
+const MAX_HOURLY_RECIPIENTS = Number(process.env.MAX_HOURLY_RECIPIENTS || 5);
+const THROTTLE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 // Ensure uploads directory exists
 if (!fs.existsSync(UPLOADS_PATH)) {
@@ -103,7 +122,6 @@ const ADMIN_EMAILS = new Set(
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean)
 );
-const APP_BASE_URL = (process.env.APP_BASE_URL || 'http://localhost:5173').replace(/\/$/, '');
 const PASSWORD_RESET_URL_BASE = (process.env.PASSWORD_RESET_URL || `${APP_BASE_URL}/reset-password`).replace(/\/$/, '');
 const PASSWORD_RESET_EXPIRY_MINUTES = Number(process.env.PASSWORD_RESET_EXPIRY_MINUTES || 30);
 const PASSWORD_RESET_EXPIRY_MS = PASSWORD_RESET_EXPIRY_MINUTES * 60 * 1000;
@@ -138,7 +156,22 @@ const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || '';
 const GOOGLE_SUCCESS_REDIRECT = (process.env.GOOGLE_SUCCESS_REDIRECT || `${APP_BASE_URL}/auth/google/callback`).replace(/\s+$/, '');
 const GOOGLE_FAILURE_REDIRECT = (process.env.GOOGLE_FAILURE_REDIRECT || `${APP_BASE_URL}/auth/google/callback`).replace(/\s+$/, '');
 const GOOGLE_ENABLED = !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_REDIRECT_URI);
-const ADMIN_USER_FIELDS = 'id,email,displayName,gender,createdAt,canSeeLikedMe,isModerator,isFlagged,selfiePath,selfieStatus,selfieRejectionReason,isSuspended,isHidden,stripeCustomerId,stripeSubscriptionId';
+const ADMIN_USER_FIELDS = 'id,email,displayName,gender,createdAt,canSeeLikedMe,isModerator,isAdmin,isFlagged,selfiePath,selfieStatus,selfieRejectionReason,isSuspended,isHidden,stripeCustomerId,stripeSubscriptionId';
+
+if (IS_PRODUCTION && CORS_ORIGIN === true) {
+  console.warn('CORS_ORIGIN is open to all origins; set CORS_ORIGIN to trusted origins in production.');
+}
+if (IS_PRODUCTION && !COOKIE_SECURE) {
+  console.warn('COOKIE_SECURE is false in production; set COOKIE_SECURE=true (and SameSite=None) for HTTPS deployments.');
+}
+if (IS_PRODUCTION && UPLOADS_PATH === DEFAULT_UPLOADS_PATH) {
+  console.warn('Uploads are stored on local disk; configure UPLOADS_PATH to persistent storage (e.g., S3/GCS or a mounted disk).');
+}
+if (!STRIPE_SECRET_KEY) {
+  console.warn('Stripe secret key is missing; billing and subscription enforcement are disabled.');
+} else if (!STRIPE_WEBHOOK_SECRET) {
+  console.warn('Stripe webhook secret is missing; subscription state will not auto-sync.');
+}
 
 if (PUSH_ENABLED) {
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
@@ -203,14 +236,16 @@ function authMiddleware(req, res, next) {
     const payload = jwt.verify(token, JWT_SECRET);
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(payload.id);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    // Auto-promote admin emails
     if (ADMIN_EMAILS.has(String(user.email || '').toLowerCase())) {
-      if (!user.isModerator || !user.canSeeLikedMe) {
+      if (!user.isAdmin || !user.isModerator || !user.canSeeLikedMe) {
         try {
-          db.prepare('UPDATE users SET isModerator=1, canSeeLikedMe=1 WHERE id=?').run(user.id);
+          db.prepare('UPDATE users SET isAdmin=1, isModerator=1, canSeeLikedMe=1 WHERE id=?').run(user.id);
+          user.isAdmin = 1;
           user.isModerator = 1;
           user.canSeeLikedMe = 1;
         } catch (err) {
-          console.error('Failed to update moderator status:', err);
+          console.error('Failed to update admin status:', err);
         }
       }
     }
@@ -237,6 +272,7 @@ function authMiddleware(req, res, next) {
       lastRewindAt: Number(user.lastRewindAt || 0),
       canSeeLikedMe: !!user.canSeeLikedMe,
       isModerator: !!user.isModerator,
+      isAdmin: !!user.isAdmin,
       isHidden: !!user.isHidden,
       isSuspended: !!user.isSuspended,
       selfieStatus: user.selfieStatus || 'none',
@@ -249,7 +285,8 @@ function authMiddleware(req, res, next) {
         stripeSubscriptionId: user.stripeSubscriptionId || null
       },
       roles: {
-        moderator: !!user.isModerator
+        moderator: !!user.isModerator,
+        admin: !!user.isAdmin
       }
     };
     next();
@@ -294,14 +331,32 @@ function recordSwipe(userId, targetId, action) {
   }
 }
 
-function canUseChat(user) {
-  if (!user) return false;
-  return user.gender === 'woman' || !!user.canSeeLikedMe;
-}
-
 function requireModerator(req, res, next) {
   if (!req.user?.roles?.moderator) {
     return res.status(403).json({ error: 'Moderator access required.' });
+  }
+  next();
+}
+
+// Optional auth middleware (best-effort)
+function optionalAuth(req, res, next) {
+  const token = req.cookies[COOKIE_NAME];
+  if (!token) return next();
+  try {
+    const { id } = jwt.verify(token, JWT_SECRET);
+    const user = db.prepare('SELECT id,email,displayName FROM users WHERE id=?').get(id);
+    if (user) {
+      req.user = { id: user.id, email: user.email, displayName: user.displayName };
+    }
+  } catch (e) {
+    // ignore
+  }
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.user?.roles?.admin) {
+    return res.status(403).json({ error: 'Admin access required.' });
   }
   next();
 }
@@ -316,6 +371,7 @@ function adminUserSummary(row) {
     createdAt: row.createdAt,
     subscription: row.canSeeLikedMe ? 'active' : 'inactive',
     moderator: !!row.isModerator,
+    admin: !!row.isAdmin,
     canSeeLikedMe: !!row.canSeeLikedMe,
     isFlagged: !!row.isFlagged,
     selfiePath: row.selfiePath,
@@ -328,8 +384,8 @@ function adminUserSummary(row) {
   };
 }
 
-const INSERT_USER_SQL = `INSERT INTO users (id,email,passwordHash,displayName,birthdate,gender,age,location,education,languages,datingStatus,heightCm,weightKg,bodyType,photos,selfiePath,interestedIn,createdAt,bio,canSeeLikedMe,termsAcceptedAt)
-              VALUES (@id,@email,@passwordHash,@displayName,@birthdate,@gender,@age,@location,@education,@languages,@datingStatus,@heightCm,@weightKg,@bodyType,@photos,@selfiePath,@interestedIn,@createdAt,@bio,@canSeeLikedMe,@termsAcceptedAt)`;
+const INSERT_USER_SQL = `INSERT INTO users (id,email,passwordHash,displayName,birthdate,gender,age,location,education,languages,datingStatus,heightCm,weightKg,bodyType,photos,selfiePath,interestedIn,createdAt,bio,canSeeLikedMe,termsAcceptedAt,emailVerified,emailVerificationToken)
+              VALUES (@id,@email,@passwordHash,@displayName,@birthdate,@gender,@age,@location,@education,@languages,@datingStatus,@heightCm,@weightKg,@bodyType,@photos,@selfiePath,@interestedIn,@createdAt,@bio,@canSeeLikedMe,@termsAcceptedAt,@emailVerified,@emailVerificationToken)`;
 
 function syncSessionUser(req, row) {
   if (!req?.user || !row || req.user.id !== row.id) return;
@@ -339,6 +395,7 @@ function syncSessionUser(req, row) {
     stripeSubscriptionId: row.stripeSubscriptionId || null
   };
   req.user.isModerator = !!row.isModerator;
+  req.user.isAdmin = !!row.isAdmin;
   req.user.isHidden = !!row.isHidden;
   req.user.isSuspended = !!row.isSuspended;
   if (row.selfiePath !== undefined) req.user.selfiePath = row.selfiePath;
@@ -348,8 +405,9 @@ function syncSessionUser(req, row) {
   req.user.stripeSubscriptionId = row.stripeSubscriptionId || null;
   if (req.user.roles) {
     req.user.roles.moderator = !!row.isModerator;
+    req.user.roles.admin = !!row.isAdmin;
   } else {
-    req.user.roles = { moderator: !!row.isModerator };
+    req.user.roles = { moderator: !!row.isModerator, admin: !!row.isAdmin };
   }
 }
 
@@ -426,6 +484,7 @@ app.post('/api/auth/register', authLimiter, (req, res) => {
     return res.status(400).json({ error: 'Email already registered' });
   }
   const hash = bcrypt.hashSync(password, 10);
+  const emailVerificationToken = crypto.randomBytes(32).toString('hex');
   const user = {
     id: uuidv4(), email: normalizedEmail, passwordHash: hash, displayName, birthdate, gender,
     age, location:'', education:'', languages: JSON.stringify([]), datingStatus:'',
@@ -434,12 +493,33 @@ app.post('/api/auth/register', authLimiter, (req, res) => {
     bio: '',
     createdAt: new Date().toISOString(),
     canSeeLikedMe: ADMIN_EMAILS.has(normalizedEmail) ? 1 : 0,
-    termsAcceptedAt: new Date().toISOString()
+    termsAcceptedAt: new Date().toISOString(),
+    emailVerified: ADMIN_EMAILS.has(normalizedEmail) ? 1 : 0,  // Auto-verify admins
+    emailVerificationToken
   }
   db.prepare(INSERT_USER_SQL).run(user)
+
+  // Send verification email (unless admin - they're auto-verified)
+  if (!ADMIN_EMAILS.has(normalizedEmail)) {
+    const verificationUrl = `${APP_BASE_URL}/verify-email?token=${emailVerificationToken}`;
+    sendMail({
+      to: normalizedEmail,
+      subject: 'Verify your email address',
+      text: `Welcome to 555Dating! Please verify your email address by clicking this link: ${verificationUrl}`,
+      html: `
+        <h2>Welcome to 555Dating!</h2>
+        <p>Please verify your email address by clicking the link below:</p>
+        <p><a href="${verificationUrl}">Verify Email Address</a></p>
+        <p>Or copy and paste this link into your browser:</p>
+        <p>${verificationUrl}</p>
+        <p>This link will expire in 24 hours.</p>
+      `
+    }).catch(err => console.error('Failed to send verification email:', err));
+  }
+
   const token = signToken(user);
   setAuthCookie(res, token);
-  res.json({ id: user.id, email: user.email, displayName: user.displayName });
+  res.json({ id: user.id, email: user.email, displayName: user.displayName, emailVerified: !!user.emailVerified });
 });
 
 app.post('/api/auth/login', authLimiter, (req, res) => {
@@ -459,6 +539,78 @@ app.post('/api/auth/login', authLimiter, (req, res) => {
 app.post('/api/auth/logout', (req, res) => {
   clearAuthCookie(res);
   res.json({ ok: true });
+});
+
+// Email verification endpoint
+app.post('/api/auth/verify-email', authMiddleware, (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    return res.status(400).json({ error: 'Verification token is required' });
+  }
+
+  const user = db.prepare('SELECT id, emailVerified, emailVerificationToken FROM users WHERE id=?').get(req.user.id);
+
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  if (user.emailVerified) {
+    return res.json({ success: true, message: 'Email already verified' });
+  }
+
+  if (user.emailVerificationToken !== token) {
+    return res.status(400).json({ error: 'Invalid verification token' });
+  }
+
+  // Mark email as verified
+  const now = Date.now();
+  db.prepare('UPDATE users SET emailVerified=1, emailVerifiedAt=?, emailVerificationToken=NULL WHERE id=?')
+    .run(now, user.id);
+
+  console.log(`[EMAIL_VERIFY] User ${user.id} verified their email`);
+  res.json({ success: true, message: 'Email verified successfully' });
+});
+
+// Resend verification email endpoint
+app.post('/api/auth/resend-verification', authMiddleware, async (req, res) => {
+  const user = db.prepare('SELECT id, email, displayName, emailVerified FROM users WHERE id=?').get(req.user.id);
+
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  if (user.emailVerified) {
+    return res.json({ success: true, message: 'Email already verified' });
+  }
+
+  // Generate new token
+  const token = crypto.randomBytes(48).toString('hex');
+  db.prepare('UPDATE users SET emailVerificationToken=? WHERE id=?').run(token, user.id);
+
+  // Send verification email
+  const verifyLink = `${APP_BASE_URL}/verify-email?token=${encodeURIComponent(token)}`;
+  const bodyLines = [
+    `Hi ${user.displayName || 'there'},`,
+    '',
+    'Welcome to 555Dating! Please verify your email address to complete your registration.',
+    'Click the link below to verify your email:',
+    verifyLink,
+    '',
+    'If you did not create this account, you can ignore this email.'
+  ];
+
+  try {
+    await sendMail({
+      to: user.email,
+      subject: '555Dating - Verify Your Email Address',
+      text: bodyLines.join('\n')
+    });
+    console.log(`[EMAIL_VERIFY] Resent verification email to ${user.email}`);
+    res.json({ success: true, message: 'Verification email sent' });
+  } catch (err) {
+    console.error('Failed to resend verification email:', err);
+    res.status(500).json({ error: 'Failed to send verification email. Please try again later.' });
+  }
 });
 
 app.get('/api/me', authMiddleware, (req, res) => {
@@ -715,15 +867,16 @@ app.patch('/api/me/preferences', authMiddleware, (req, res) => {
 app.post('/api/me/photo', authMiddleware, upload.single('photo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file' });
-    const row = db.prepare('SELECT photos FROM users WHERE id=?').get(req.user.id)
+    const row = db.prepare('SELECT photos, photosStatus FROM users WHERE id=?').get(req.user.id)
     const photos = parseJSON(row?.photos, [])
     if (photos.length >= 2) return res.status(400).json({ error: 'Max 2 photos allowed' })
     const filename = `${uuidv4()}.jpg`
     const outPath = path.join(UPLOADS_PATH, filename)
     await sharp(req.file.buffer).rotate().resize(1080, 1080, { fit:'inside' }).jpeg({ quality:85 }).toFile(outPath)
     const updated = [...photos, '/uploads/' + filename]
-    db.prepare('UPDATE users SET photos=? WHERE id=?').run(JSON.stringify(updated), req.user.id)
-    res.json({ photos: updated })
+    // Set photo status to pending for moderation
+    db.prepare('UPDATE users SET photos=?, photosStatus=? WHERE id=?').run(JSON.stringify(updated), 'pending', req.user.id)
+    res.json({ photos: updated, photosStatus: 'pending' })
   } catch (e) { res.status(400).json({ error: e.message }) }
 });
 
@@ -864,6 +1017,7 @@ app.get('/api/users/:id', authMiddleware, (req, res) => {
 // Likes and matches (simple mutual like)
 app.post('/api/like/:id', authMiddleware, (req, res) => {
   if (!req.user.selfiePath) return res.status(403).json({ error: 'Selfie required to like' })
+  if (!req.user.emailVerified && !req.user.isModerator) return res.status(403).json({ error: 'Email verification required to like. Check your email for the verification link.' })
   const targetId = req.params.id;
   if (targetId === req.user.id) return res.status(400).json({ error: 'Cannot like yourself' });
   const target = db.prepare('SELECT id, displayName, isHidden, isSuspended FROM users WHERE id=?').get(targetId)
@@ -902,6 +1056,7 @@ app.get('/api/superlike/status', authMiddleware, (req, res) => {
 
 app.post('/api/superlike/:id', authMiddleware, (req, res) => {
   if (!req.user.selfiePath) return res.status(403).json({ error: 'Selfie required to super like' })
+  if (!req.user.emailVerified && !req.user.isModerator) return res.status(403).json({ error: 'Email verification required to super like. Check your email for the verification link.' })
   const toId = req.params.id
   if (toId === req.user.id) return res.status(400).json({ error: 'Cannot super like yourself' })
   const target = db.prepare('SELECT id, gender, displayName, isHidden, isSuspended FROM users WHERE id=?').get(toId)
@@ -1055,6 +1210,7 @@ app.post('/api/swipe/rewind', authMiddleware, (req, res) => {
 // Swipe next candidate
 app.get('/api/swipe/next', authMiddleware, (req, res) => {
   if (!req.user.selfiePath) return res.status(403).json({ error: 'Selfie required to swipe' })
+  if (!req.user.emailVerified && !req.user.isModerator) return res.status(403).json({ error: 'Email verification required to swipe. Check your email for the verification link.' })
   const { minAge, maxAge, location, bodyType, education, language, lat, lng, radiusKm } = req.query
   const meId = req.user.id
   const blocked = db.prepare('SELECT toId as id FROM blocks WHERE fromId=? UNION SELECT fromId as id FROM blocks WHERE toId=?').all(meId, meId).map(r=>r.id)
@@ -1126,6 +1282,7 @@ app.get('/api/swipe/next', authMiddleware, (req, res) => {
 // Messages (store simple thread messages)
 app.get('/api/messages/:userId', authMiddleware, (req, res) => {
   if (!req.user.selfiePath) return res.status(403).json({ error: 'Selfie required to message' })
+  if (!req.user.emailVerified && !req.user.isModerator) return res.status(403).json({ error: 'Email verification required to message. Check your email for the verification link.' })
   const other = req.params.userId
   const partnerRow = db.prepare('SELECT id, displayName, gender, birthdate, location, photos, selfiePath FROM users WHERE id=?').get(other)
   if (!partnerRow) return res.status(404).json({ error: 'Not found' })
@@ -1164,12 +1321,107 @@ app.get('/api/messages/:userId', authMiddleware, (req, res) => {
 });
 
 app.post('/api/messages/:userId', authMiddleware, (req, res) => {
+  if (!req.user.emailVerified && !req.user.isModerator) return res.status(403).json({ error: 'Email verification required to message. Check your email for the verification link.' })
   const { text } = req.body;
   if (!text) return res.status(400).json({ error: 'Text required' });
-  // simple banned word filter
-  const banned = ['scam','fraud']
-  const lower = String(text).toLowerCase()
-  if (banned.some(w => lower.includes(w))) return res.status(400).json({ error: 'Message contains banned words' })
+
+  // Enhanced banned word filter - dating app specific spam/scam prevention
+  const banned = [
+    'scam', 'fraud', 'bitcoin', 'crypto', 'investment', 'forex', 'trading',
+    'whatsapp', 'telegram', 'kik', 'snapchat', 'wickr', 'signal',  // Off-platform solicitation
+    'sugar daddy', 'sugar baby', 'allowance', 'arrangement',  // Financial arrangements
+    'escort', 'prostitute', 'massage', 'happy ending',  // Sex work
+    'cam', 'camgirl', 'onlyfans', 'premium snap',  // Paid content solicitation
+    'venmo', 'cashapp', 'paypal', 'zelle',  // Payment requests
+    'gift card', 'amazon card', 'itunes card',  // Common scam payment methods
+    'nigerian prince', 'inheritance', 'lottery',  // Classic scams
+    'mlm', 'multi level', 'network marketing', 'business opportunity'  // MLM schemes
+  ];
+
+  const lower = String(text).toLowerCase();
+  const bannedWord = banned.find(w => lower.includes(w));
+
+  if (bannedWord) {
+    console.log(`[BANNED_WORD] User ${req.user.id} tried to send message with banned word: "${bannedWord}"`);
+    return res.status(400).json({ error: 'Message contains inappropriate content' });
+  }
+
+  const toId = req.params.userId;
+  const fromId = req.user.id;
+
+  // Check if recipient exists and is not suspended/hidden
+  const recipient = db.prepare('SELECT isSuspended, isHidden FROM users WHERE id=?').get(toId);
+  if (!recipient || recipient.isSuspended || recipient.isHidden) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  // Check if blocked
+  const isBlocked = db.prepare('SELECT 1 FROM blocks WHERE fromId=? AND toId=?').get(toId, fromId);
+  if (isBlocked) {
+    return res.status(403).json({ error: 'Unable to send message' });
+  }
+
+  // Chat throttle for men/non-subscribed users (women, moderators, and subscribers are exempt)
+  const isExempt = req.user.gender === 'woman' || req.user.isModerator || req.user.canSeeLikedMe;
+
+  if (!isExempt) {
+    const now = Date.now();
+
+    // Check consecutive message limit
+    const lastReply = db.prepare(`
+      SELECT ts FROM messages
+      WHERE fromId = ? AND toId = ?
+      ORDER BY ts DESC LIMIT 1
+    `).get(toId, fromId);
+
+    const lastReplyTs = lastReply ? lastReply.ts : 0;
+
+    const consecutiveCount = db.prepare(`
+      SELECT COUNT(*) as count FROM messages
+      WHERE fromId = ? AND toId = ? AND ts > ?
+    `).get(fromId, toId, lastReplyTs).count;
+
+    if (consecutiveCount >= MAX_CONSECUTIVE_MESSAGES) {
+      console.log(`[THROTTLE] User ${fromId} hit consecutive message limit to ${toId}`);
+      return res.status(429).json({
+        error: `You can only send ${MAX_CONSECUTIVE_MESSAGES} messages until they reply. Please wait for a response before sending more.`,
+        throttleType: 'consecutive'
+      });
+    }
+
+    // Check hourly unique recipient limit
+    const hourAgo = now - THROTTLE_WINDOW_MS;
+    const uniqueRecipients = db.prepare(`
+      SELECT COUNT(DISTINCT toId) as count FROM messages
+      WHERE fromId = ? AND ts > ?
+    `).get(fromId, hourAgo).count;
+
+    // Check if this is a new recipient (not in the recent messages)
+    const isExistingRecipient = db.prepare(`
+      SELECT 1 FROM messages
+      WHERE fromId = ? AND toId = ? AND ts > ?
+      LIMIT 1
+    `).get(fromId, toId, hourAgo);
+
+    if (!isExistingRecipient && uniqueRecipients >= MAX_HOURLY_RECIPIENTS) {
+      // Calculate time remaining until oldest message expires
+      const oldestMessage = db.prepare(`
+        SELECT ts FROM messages WHERE fromId = ? AND ts > ? ORDER BY ts ASC LIMIT 1
+      `).get(fromId, hourAgo);
+
+      const minutesRemaining = oldestMessage
+        ? Math.ceil((oldestMessage.ts + THROTTLE_WINDOW_MS - now) / 60000)
+        : 0;
+
+      console.log(`[THROTTLE] User ${fromId} hit hourly recipient limit (${uniqueRecipients}/${MAX_HOURLY_RECIPIENTS})`);
+      return res.status(429).json({
+        error: `You can only message ${MAX_HOURLY_RECIPIENTS} different people per hour. Try again in ${minutesRemaining} minute${minutesRemaining !== 1 ? 's' : ''}.`,
+        throttleType: 'hourly',
+        minutesRemaining
+      });
+    }
+  }
+
   const msg = {
     id: uuidv4(),
     fromId: req.user.id,
@@ -1197,6 +1449,50 @@ app.post('/api/messages/:userId', authMiddleware, (req, res) => {
     preview: text.slice(0, 120)
   }).catch(err => console.error('Failed to send message push notification:', err));
   res.json(msg);
+});
+
+// General feedback / issue reports (optional auth)
+app.post('/api/feedback', optionalAuth, (req, res) => {
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  if (!message) return res.status(400).json({ error: 'Message required' });
+
+  const emailFromUser = typeof req.body?.email === 'string' ? req.body.email.trim().slice(0, 200) : '';
+  const url = typeof req.body?.url === 'string' ? req.body.url.trim().slice(0, 500) : '';
+  const category = typeof req.body?.category === 'string' ? req.body.category.trim().slice(0, 100) : 'general';
+
+  const record = {
+    id: uuidv4(),
+    userId: req.user?.id || null,
+    email: emailFromUser || req.user?.email || '',
+    category: category || 'general',
+    message: message.slice(0, 2000),
+    url,
+    createdAt: Date.now(),
+    status: 'open'
+  };
+
+  db.prepare(`
+    INSERT INTO issues (id, userId, email, category, message, url, createdAt, status)
+    VALUES (@id,@userId,@email,@category,@message,@url,@createdAt,@status)
+  `).run(record);
+
+  const primaryAdmin = [...ADMIN_EMAILS][0];
+  if (primaryAdmin && mailTransporter) {
+    sendMail({
+      to: primaryAdmin,
+      subject: `New issue report (${record.category})`,
+      text: [
+        `From: ${record.email || 'anonymous'}`,
+        `User ID: ${record.userId || 'none'}`,
+        `Category: ${record.category}`,
+        `URL: ${record.url || 'n/a'}`,
+        '',
+        record.message
+      ].join('\n')
+    }).catch(err => console.error('Failed to send issue email', err));
+  }
+
+  res.status(201).json({ ok: true });
 });
 
 app.post('/api/push/subscribe', authMiddleware, (req, res) => {
@@ -1253,33 +1549,6 @@ app.get('/api/inbox', authMiddleware, (req, res) => {
   res.json(rows)
 })
 
-// Rooms
-app.get('/api/rooms', authMiddleware, (req, res) => {
-  if (!canUseChat(req.user)) {
-    return res.status(403).json({ error: 'Chat requires an active subscription.' });
-  }
-  const rooms = db.prepare('SELECT * FROM rooms ORDER BY name COLLATE NOCASE').all();
-  res.json(rooms);
-});
-
-app.post('/api/rooms', authMiddleware, (req, res) => {
-  if (!canUseChat(req.user)) {
-    return res.status(403).json({ error: 'Chat requires an active subscription.' });
-  }
-  const rawName = typeof req.body?.name === 'string' ? req.body.name : '';
-  const name = rawName.trim().slice(0, 50);
-  if (name.length < 2) {
-    return res.status(400).json({ error: 'Room name must be at least 2 characters.' });
-  }
-  const duplicate = db.prepare('SELECT 1 FROM rooms WHERE lower(name) = lower(?)').get(name);
-  if (duplicate) {
-    return res.status(409).json({ error: 'Room name already exists.' });
-  }
-  const id = uuidv4();
-  db.prepare('INSERT INTO rooms (id, name) VALUES (?, ?)').run(id, name);
-  res.status(201).json({ id, name });
-});
-
 app.get('/api/admin/users', authMiddleware, requireModerator, (req, res) => {
   const rows = db
     .prepare(`SELECT ${ADMIN_USER_FIELDS} FROM users ORDER BY datetime(createdAt) DESC`)
@@ -1287,7 +1556,8 @@ app.get('/api/admin/users', authMiddleware, requireModerator, (req, res) => {
   res.json(rows.map(adminUserSummary));
 });
 
-app.post('/api/admin/users/:id/subscription', authMiddleware, requireModerator, (req, res) => {
+// Admin-only: Grant/revoke subscriptions
+app.post('/api/admin/users/:id/subscription', authMiddleware, requireAdmin, (req, res) => {
   const active = !!req.body?.active;
   db.prepare('UPDATE users SET canSeeLikedMe=? WHERE id=?').run(active ? 1 : 0, req.params.id);
   const row = db
@@ -1298,7 +1568,8 @@ app.post('/api/admin/users/:id/subscription', authMiddleware, requireModerator, 
   res.json(adminUserSummary(row));
 });
 
-app.post('/api/admin/users/:id/moderator', authMiddleware, requireModerator, (req, res) => {
+// Admin-only: Promote to moderator
+app.post('/api/admin/users/:id/moderator', authMiddleware, requireAdmin, (req, res) => {
   db.prepare('UPDATE users SET isModerator=1 WHERE id=?').run(req.params.id);
   const row = db
     .prepare(`SELECT ${ADMIN_USER_FIELDS} FROM users WHERE id=?`)
@@ -1308,7 +1579,8 @@ app.post('/api/admin/users/:id/moderator', authMiddleware, requireModerator, (re
   res.json(adminUserSummary(row));
 });
 
-app.delete('/api/admin/users/:id/moderator', authMiddleware, requireModerator, (req, res) => {
+// Admin-only: Demote moderator
+app.delete('/api/admin/users/:id/moderator', authMiddleware, requireAdmin, (req, res) => {
   db.prepare('UPDATE users SET isModerator=0 WHERE id=?').run(req.params.id);
   const row = db
     .prepare(`SELECT ${ADMIN_USER_FIELDS} FROM users WHERE id=?`)
@@ -1318,33 +1590,57 @@ app.delete('/api/admin/users/:id/moderator', authMiddleware, requireModerator, (
   res.json(adminUserSummary(row));
 });
 
+// Mods can suspend regular users, only admins can suspend mods/admins
 app.post('/api/admin/users/:id/suspend', authMiddleware, requireModerator, (req, res) => {
+  const target = db.prepare('SELECT isModerator, isAdmin FROM users WHERE id=?').get(req.params.id);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+
+  // Only admins can suspend other mods or admins
+  if ((target.isModerator || target.isAdmin) && !req.user.isAdmin) {
+    return res.status(403).json({ error: 'Cannot suspend moderators or admins' });
+  }
+
   db.prepare('UPDATE users SET isSuspended=1 WHERE id=?').run(req.params.id);
   const row = db
     .prepare(`SELECT ${ADMIN_USER_FIELDS} FROM users WHERE id=?`)
     .get(req.params.id);
-  if (!row) return res.status(404).json({ error: 'User not found' });
   syncSessionUser(req, row);
   res.json(adminUserSummary(row));
 });
 
+// Mods can unsuspend regular users, only admins can unsuspend mods/admins
 app.delete('/api/admin/users/:id/suspend', authMiddleware, requireModerator, (req, res) => {
+  const target = db.prepare('SELECT isModerator, isAdmin FROM users WHERE id=?').get(req.params.id);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+
+  // Only admins can unsuspend other mods or admins
+  if ((target.isModerator || target.isAdmin) && !req.user.isAdmin) {
+    return res.status(403).json({ error: 'Cannot unsuspend moderators or admins' });
+  }
+
   db.prepare('UPDATE users SET isSuspended=0 WHERE id=?').run(req.params.id);
   const row = db
     .prepare(`SELECT ${ADMIN_USER_FIELDS} FROM users WHERE id=?`)
     .get(req.params.id);
-  if (!row) return res.status(404).json({ error: 'User not found' });
   syncSessionUser(req, row);
   res.json(adminUserSummary(row));
 });
 
+// Mods can hide regular users, only admins can hide mods/admins
 app.post('/api/admin/users/:id/visibility', authMiddleware, requireModerator, (req, res) => {
   const hidden = !!req.body?.hidden;
+  const target = db.prepare('SELECT isModerator, isAdmin FROM users WHERE id=?').get(req.params.id);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+
+  // Only admins can hide other mods or admins
+  if ((target.isModerator || target.isAdmin) && !req.user.isAdmin) {
+    return res.status(403).json({ error: 'Cannot change visibility of moderators or admins' });
+  }
+
   db.prepare('UPDATE users SET isHidden=? WHERE id=?').run(hidden ? 1 : 0, req.params.id);
   const row = db
     .prepare(`SELECT ${ADMIN_USER_FIELDS} FROM users WHERE id=?`)
     .get(req.params.id);
-  if (!row) return res.status(404).json({ error: 'User not found' });
   syncSessionUser(req, row);
   res.json(adminUserSummary(row));
 });
@@ -1381,6 +1677,38 @@ app.get('/api/admin/verifications', authMiddleware, requireModerator, (req, res)
   res.json(pending);
 });
 
+// Get pending photo reviews
+app.get('/api/admin/photo-reviews', authMiddleware, requireModerator, (req, res) => {
+  const pending = db.prepare(`
+    SELECT id, displayName, email, photos, photosStatus, createdAt
+    FROM users
+    WHERE photosStatus = 'pending' AND photos IS NOT NULL AND photos != '[]'
+    ORDER BY createdAt DESC
+  `).all();
+  res.json(pending);
+});
+
+// Approve user photos
+app.post('/api/admin/users/:id/approve-photos', authMiddleware, requireModerator, (req, res) => {
+  db.prepare('UPDATE users SET photosStatus=?, photosRejectionReason=NULL WHERE id=?').run('approved', req.params.id);
+  const row = db
+    .prepare(`SELECT ${ADMIN_USER_FIELDS}, photosStatus, photosRejectionReason FROM users WHERE id=?`)
+    .get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'User not found' });
+  res.json(adminUserSummary(row));
+});
+
+// Reject user photos
+app.post('/api/admin/users/:id/reject-photos', authMiddleware, requireModerator, (req, res) => {
+  const { reason } = req.body;
+  db.prepare('UPDATE users SET photosStatus=?, photosRejectionReason=? WHERE id=?').run('rejected', reason || 'Photos do not meet community guidelines', req.params.id);
+  const row = db
+    .prepare(`SELECT ${ADMIN_USER_FIELDS}, photosStatus, photosRejectionReason FROM users WHERE id=?`)
+    .get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'User not found' });
+  res.json(adminUserSummary(row));
+});
+
 // Get all reports
 app.get('/api/admin/reports', authMiddleware, requireModerator, (req, res) => {
   const reports = db.prepare(`
@@ -1398,6 +1726,17 @@ app.get('/api/admin/reports', authMiddleware, requireModerator, (req, res) => {
     LIMIT 100
   `).all();
   res.json(reports);
+});
+
+// Admin: list issue reports
+app.get('/api/admin/issues', authMiddleware, requireModerator, (req, res) => {
+  const issues = db.prepare(`
+    SELECT id, userId, email, category, message, url, createdAt, status
+    FROM issues
+    ORDER BY createdAt DESC
+    LIMIT 200
+  `).all();
+  res.json(issues);
 });
 
 // Review a report
@@ -1734,7 +2073,6 @@ io.use((socket, next) => {
     if (!userRecord || userRecord.isSuspended) return next(new Error('auth failed'));
     socket.userId = userRecord.id;
     socket.chatProfile = userRecord;
-    socket.chatEligible = canUseChat(userRecord);
     next();
   } catch (e) {
     next(new Error('auth failed'));
@@ -1749,37 +2087,6 @@ io.on('connection', (socket) => {
   } catch (err) {
     console.error('Failed to update lastActive on socket connection:', err);
   }
-
-  socket.on('join_room', (roomId, cb) => {
-    const ack = typeof cb === 'function' ? cb : () => {};
-    if (!socket.chatEligible) {
-      return ack({ error: 'Chat requires an active subscription.' });
-    }
-    const room = db.prepare('SELECT id FROM rooms WHERE id=?').get(roomId);
-    if (!room) {
-      return ack({ error: 'Room not found.' });
-    }
-    socket.join(`room:${roomId}`);
-    ack({ ok: true });
-  });
-
-  socket.on('room_message', ({ roomId, text }, cb) => {
-    const ack = typeof cb === 'function' ? cb : () => {};
-    if (!socket.chatEligible) {
-      return ack({ error: 'Chat requires an active subscription.' });
-    }
-    const room = db.prepare('SELECT id FROM rooms WHERE id=?').get(roomId);
-    if (!room) {
-      return ack({ error: 'Room not found.' });
-    }
-    const trimmed = typeof text === 'string' ? text.trim() : '';
-    if (!trimmed) {
-      return ack({ error: 'Message cannot be empty.' });
-    }
-    const msg = { id: uuidv4(), roomId, fromId: socket.userId, text: trimmed, ts: Date.now(), displayName: socket.chatProfile?.displayName || 'Member', gender: socket.chatProfile?.gender || 'man' };
-    io.to(`room:${roomId}`).emit('room_message', msg);
-    ack({ ok: true });
-  });
 
   socket.on('typing', ({ toId, typing }) => {
     if (!toId) return

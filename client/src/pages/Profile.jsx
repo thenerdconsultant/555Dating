@@ -41,6 +41,8 @@ export default function Profile({ user, setUser }){
   const [reportsHistory,setReportsHistory] = useState([])
   const [reportsLoading,setReportsLoading] = useState(false)
   const [reportsError,setReportsError] = useState('')
+  const [emailVerifyLoading,setEmailVerifyLoading] = useState(false)
+  const [emailVerifyMsg,setEmailVerifyMsg] = useState('')
   const fileRef = useRef()
   const videoRef = useRef()
   const canvasRef = useRef()
@@ -136,6 +138,21 @@ useEffect(()=>{
       loadBlockedUsers()
     } catch (error) {
       setBlockedError(error.message)
+    }
+  }
+
+  async function resendVerification() {
+    setEmailVerifyLoading(true)
+    setEmailVerifyMsg('')
+    try {
+      const result = await api('/api/auth/resend-verification', { method: 'POST' })
+      setEmailVerifyMsg(result.message || 'Verification email sent! Check your inbox.')
+      setTimeout(() => setEmailVerifyMsg(''), 8000)
+    } catch (error) {
+      setEmailVerifyMsg(error.message || 'Failed to send verification email')
+      setTimeout(() => setEmailVerifyMsg(''), 8000)
+    } finally {
+      setEmailVerifyLoading(false)
     }
   }
 
@@ -364,6 +381,32 @@ useEffect(()=>{
     <div className="col" style={{gap:16}}>
       <h2>{t('profile.title','Your profile')}</h2>
 
+      {!user.emailVerified && (
+        <div className="card col" style={{backgroundColor:'#fff8e1', borderColor:'#ffc107'}}>
+          <div className="row" style={{alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap'}}>
+            <div className="col" style={{gap:6, flex:1}}>
+              <strong style={{color:'#f57c00'}}>Email Verification Required</strong>
+              <span style={{color:'#9aa0a6'}}>
+                Please verify your email address to unlock all features. Check your inbox for the verification link.
+              </span>
+            </div>
+            <button
+              className="btn secondary"
+              onClick={resendVerification}
+              disabled={emailVerifyLoading}
+              style={{flexShrink:0}}
+            >
+              {emailVerifyLoading ? 'Sending...' : 'Resend Email'}
+            </button>
+          </div>
+          {emailVerifyMsg && (
+            <div className="pill" style={{color: emailVerifyMsg.includes('Failed') ? '#ff8b8b' : '#4caf50'}}>
+              {emailVerifyMsg}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="card col">
         <strong>{t('profile.boost.title', 'Profile boost')}</strong>
         <span style={{color:'#9aa0a6'}}>{t('profile.boost.description', 'Promote your profile to the top of discovery for 15 minutes.')}</span>
@@ -492,10 +535,49 @@ useEffect(()=>{
         <div className="row">
           <div className="field" style={{flex:1}}>
             <label>{t('profile.languages','Languages you speak')}</label>
-            <select multiple value={Array.isArray(form.languages)?form.languages: []} onChange={e=>update('languages', Array.from(e.target.selectedOptions).map(o=>o.value))}>
-              {languages.map(l=> <option key={l} value={l}>{languageNameFor(l)}</option>)}
-            </select>
-            <small style={{color:'#9aa0a6'}}>{t('profile.languages.hint','Tip: Use Ctrl/Command to multi-select')}</small>
+            <div className="col" style={{ gap: 8 }}>
+              <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <select
+                  value=""
+                  onChange={e => {
+                    const val = e.target.value
+                    if (!val) return
+                    const next = Array.isArray(form.languages) ? [...form.languages] : []
+                    if (!next.includes(val)) update('languages', [...next, val])
+                  }}
+                  style={{ minWidth: 220 }}
+                >
+                  <option value="">{t('common.choose','Choose...')}</option>
+                  {languages
+                    .filter(l => !form.languages?.includes(l))
+                    .map(l => (
+                      <option key={l} value={l}>{languageNameFor(l)}</option>
+                    ))}
+                </select>
+                <small style={{ color: '#9aa0a6' }}>
+                  {t('profile.languages.hint','Select to add; click X to remove.')}
+                </small>
+              </div>
+              <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                {(form.languages || []).map(lang => (
+                  <span key={lang} className="pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    {languageNameFor(lang)}
+                    <button
+                      type="button"
+                      className="btn secondary"
+                      style={{ padding: '2px 8px', fontSize: 12 }}
+                      onClick={() => update('languages', (form.languages || []).filter(l => l !== lang))}
+                      aria-label={t('common.remove','Remove')}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {(!form.languages || form.languages.length === 0) && (
+                  <small style={{ color: '#9aa0a6' }}>{t('profile.languages.empty','No languages selected yet.')}</small>
+                )}
+              </div>
+            </div>
           </div>
           <div className="field" style={{flex:1}}>
             <label>{t('profile.bodyType','Body type')}</label>

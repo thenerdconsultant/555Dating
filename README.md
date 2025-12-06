@@ -118,7 +118,7 @@ Templates: `server/.env.example`, `client/.env.example`. For local dev the Power
 ### 4. Shareable Test Checklist
 
 - ✅ Update `ADMIN_EMAILS` with your address → `. \set-env.ps1` → sign in → see Admin tab.
-- ✅ Verify chat restrictions: only women or subscribed men can send/ create rooms.
+- ✅ Verify chat restrictions: only women or subscribed men can send DMs (men without subs are throttled).
 - ✅ Use Render URL + Netlify front-end to exercise selfie verification, likes, admin APIs.
 - ✅ From Expo Go, toggle plans and chat to test real devices.
 

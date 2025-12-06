@@ -108,10 +108,18 @@ export default function Messages({ user }){
       const msg = await api('/api/messages/'+userId, { method:'POST', body:{ text } })
       setItems(prev=>[...prev, msg])
       setText('')
+      setErr('') // Clear any previous errors on success
       if (socketRef.current) {
         socketRef.current.emit('typing', { toId: userId, typing: false })
       }
-    } catch(e){ setErr(e.message) }
+    } catch(e){
+      // Show user-friendly error message
+      setErr(e.message)
+      // Auto-clear error after 8 seconds for throttle messages
+      if (e.message.includes('messages until') || e.message.includes('different people')) {
+        setTimeout(() => setErr(''), 8000)
+      }
+    }
   }
 
   function onInput(e){

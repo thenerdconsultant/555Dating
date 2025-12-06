@@ -63,10 +63,8 @@ CREATE TABLE IF NOT EXISTS messages (
   readAt INTEGER
 );
 
-CREATE TABLE IF NOT EXISTS rooms (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL
-);
+CREATE INDEX IF NOT EXISTS idx_messages_from_to_ts ON messages(fromId, toId, ts);
+CREATE INDEX IF NOT EXISTS idx_messages_from_ts ON messages(fromId, ts);
 
 CREATE TABLE IF NOT EXISTS blocks (
   id TEXT PRIMARY KEY,
@@ -129,6 +127,17 @@ CREATE TABLE IF NOT EXISTS reports (
   status TEXT DEFAULT 'pending',
   action TEXT
 );
+
+CREATE TABLE IF NOT EXISTS issues (
+  id TEXT PRIMARY KEY,
+  userId TEXT,
+  email TEXT,
+  category TEXT DEFAULT 'general',
+  message TEXT NOT NULL,
+  url TEXT,
+  createdAt INTEGER NOT NULL,
+  status TEXT DEFAULT 'open'
+);
 `)
 
 // Ensure added columns exist (for older DBs)
@@ -141,6 +150,7 @@ try {
   if (!cols.some(c => c.name === 'canSeeLikedMe')) db.exec("ALTER TABLE users ADD COLUMN canSeeLikedMe INTEGER DEFAULT 0")
   if (!cols.some(c => c.name === 'bio')) db.exec("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''")
   if (!cols.some(c => c.name === 'isModerator')) db.exec("ALTER TABLE users ADD COLUMN isModerator INTEGER DEFAULT 0")
+  if (!cols.some(c => c.name === 'isAdmin')) db.exec("ALTER TABLE users ADD COLUMN isAdmin INTEGER DEFAULT 0")
   if (!cols.some(c => c.name === 'isSuspended')) db.exec("ALTER TABLE users ADD COLUMN isSuspended INTEGER DEFAULT 0")
   if (!cols.some(c => c.name === 'isHidden')) db.exec("ALTER TABLE users ADD COLUMN isHidden INTEGER DEFAULT 0")
   if (!cols.some(c => c.name === 'stripeCustomerId')) db.exec("ALTER TABLE users ADD COLUMN stripeCustomerId TEXT")
@@ -148,14 +158,13 @@ try {
   if (!cols.some(c => c.name === 'termsAcceptedAt')) db.exec("ALTER TABLE users ADD COLUMN termsAcceptedAt TEXT")
   if (!cols.some(c => c.name === 'selfieStatus')) db.exec("ALTER TABLE users ADD COLUMN selfieStatus TEXT DEFAULT 'none'")
   if (!cols.some(c => c.name === 'selfieRejectionReason')) db.exec("ALTER TABLE users ADD COLUMN selfieRejectionReason TEXT")
+  if (!cols.some(c => c.name === 'photosStatus')) db.exec("ALTER TABLE users ADD COLUMN photosStatus TEXT DEFAULT 'approved'")
+  if (!cols.some(c => c.name === 'photosRejectionReason')) db.exec("ALTER TABLE users ADD COLUMN photosRejectionReason TEXT")
+  if (!cols.some(c => c.name === 'emailVerified')) db.exec("ALTER TABLE users ADD COLUMN emailVerified INTEGER DEFAULT 0")
+  if (!cols.some(c => c.name === 'emailVerificationToken')) db.exec("ALTER TABLE users ADD COLUMN emailVerificationToken TEXT")
+  if (!cols.some(c => c.name === 'emailVerifiedAt')) db.exec("ALTER TABLE users ADD COLUMN emailVerifiedAt INTEGER")
 } catch (err) {
   console.error('Database migration error:', err);
-}
-
-// Seed default room if not exists
-const roomCount = db.prepare('SELECT COUNT(*) as n FROM rooms').get().n
-if (roomCount === 0) {
-  db.prepare('INSERT INTO rooms (id, name) VALUES (?, ?)').run('public', 'Public')
 }
 
 export default db

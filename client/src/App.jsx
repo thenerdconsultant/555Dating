@@ -10,15 +10,14 @@ import Profile from './pages/Profile'
 import Matches from './pages/Matches'
 import Messages from './pages/Messages'
 import MessagesList from './pages/MessagesList'
-import Rooms from './pages/Rooms'
 import LikesQueue from './pages/LikesQueue'
 import MemberProfile from './pages/MemberProfile'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import GoogleCallback from './pages/GoogleCallback'
+import VerifyEmail from './pages/VerifyEmail'
 import Admin from './pages/Admin'
-import Billing from './pages/Billing'
-import BillingStatus from './pages/BillingStatus'
+import ReportIssue from './pages/ReportIssue'
 import Tos from './pages/Tos'
 import CommunityRules from './pages/CommunityRules'
 
@@ -110,6 +109,7 @@ export default function App(){
       <Routes>
         <Route path="/tos" element={<Tos />} />
         <Route path="/community-rules" element={<CommunityRules />} />
+        <Route path="/report-issue" element={<ReportIssue />} />
         <Route path="/auth/google/callback" element={<GoogleCallback onAuthed={setUser} onRefreshUser={refreshUser} />} />
         {!user ? (
           <>
@@ -125,15 +125,15 @@ export default function App(){
             <Route path="/swipe" element={<Swipe user={user} onUpdateUser={setUser} />} />
             <Route path="/discover" element={<Discover user={user} />} />
             <Route path="/profile" element={<Profile user={user} setUser={setUser} />} />
+            <Route path="/verify-email" element={<VerifyEmail setUser={setUser} />} />
             <Route path="/matches" element={<Matches />} />
             <Route path="/likes" element={<LikesQueue user={user} />} />
             <Route path="/messages" element={<MessagesList user={user} />} />
             <Route path="/messages/:userId" element={<Messages user={user} />} />
             <Route path="/members/:userId" element={<MemberProfile viewer={user} />} />
-            <Route path="/rooms" element={<Rooms user={user} />} />
-            <Route path="/billing" element={<Billing user={user} />} />
-            <Route path="/billing/success" element={<BillingStatus variant="success" onRefreshUser={refreshUser} />} />
-            <Route path="/billing/cancel" element={<BillingStatus variant="cancel" onRefreshUser={refreshUser} />} />
+            <Route path="/billing" element={<BillingPlaceholder />} />
+            <Route path="/billing/success" element={<BillingPlaceholder />} />
+            <Route path="/billing/cancel" element={<BillingPlaceholder />} />
             <Route path="/admin" element={<Admin user={user} onRefreshUser={refreshUser} />} />
             <Route path="*" element={<Discover user={user} />} />
           </>
@@ -146,15 +146,24 @@ export default function App(){
           <Link to="/discover">{t('nav.discover','Discover')}</Link>
           <Link to="/matches">{t('nav.matches','Matches')}</Link>
           {user.canSeeLikedMe && <Link to="/likes">{t('nav.likes','Liked Me')}</Link>}
-          <Link to="/rooms">{t('nav.rooms','Rooms')}</Link>
           <Link to="/messages">{t('nav.messages','Messages')}</Link>
-          {user.gender === 'man' && <Link to="/billing">{t('nav.subscription','Subscription')}</Link>}
           {user.roles?.moderator && <Link to="/admin">{t('nav.admin','Admin')}</Link>}
           <Link to="/profile">{t('nav.profile','Profile')}</Link>
         </nav>
       )}
 
       <FooterLinks t={t} />
+    </div>
+  )
+}
+
+function BillingPlaceholder() {
+  return (
+    <div style={{ padding: '24px 0', display:'flex', flexDirection:'column', gap:12 }}>
+      <h2 style={{ margin:0 }}>Billing temporarily unavailable</h2>
+      <p style={{ margin:0, color:'#9aa0a6', maxWidth:420 }}>
+        Payments are paused while we finalize banking setup. You can continue using the app without subscribing for now.
+      </p>
     </div>
   )
 }
@@ -279,6 +288,8 @@ function FooterLinks({ t }) {
       }}
     >
       <Link to="/tos" style={{color:'#9aa0a6'}}>{t('footer.tos','Terms of Service')}</Link>
+      <span aria-hidden="true">•</span>
+      <Link to="/report-issue" style={{color:'#9aa0a6'}}>Report a problem</Link>
       <span aria-hidden="true">•</span>
       <Link to="/community-rules" style={{color:'#9aa0a6'}}>{t('footer.community','Community Rules')}</Link>
     </footer>

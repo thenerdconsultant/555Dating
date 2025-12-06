@@ -12,7 +12,20 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(git checkout:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(npm run build:*)",
+      "Bash(node seed-fake-users.js:*)",
+      "Bash(npm run dev:*)",
+      "Bash(node list-test-accounts.js:*)",
+      "Bash(node fix-test-account-photos.js:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(node:*)",
+      "Bash(timeout /t 3 /nobreak)",
+      "Bash(nul)",
+      "Bash(mkdir:*)",
+      "Bash(move \"c:\\555Dating\\amation-website\" \"C:\\amation-website\")"
     ],
     "deny": [],
     "ask": []

@@ -1,24 +1,29 @@
 /* Design System */
 :root {
-  /* Colors - Enhanced Palette */
-  --bg: #0a0a0a;
-  --bg-subtle: #0f0f0f;
-  --fg: #fafafa;
-  --fg-muted: #a1a1a1;
-  --fg-subtle: #6b6b6b;
+  /* Colors - Romantic Modern Palette */
+  --bg: #fafafa;
+  --bg-subtle: #ffffff;
+  --fg: #1a1a1a;
+  --fg-muted: #666666;
+  --fg-subtle: #999999;
 
-  /* Accent Colors */
-  --accent: #ff3b5c;
-  --accent-hover: #ff5270;
-  --accent-light: rgba(255, 59, 92, 0.1);
-  --accent-glow: rgba(255, 59, 92, 0.25);
+  /* Accent Colors - Warm Romance */
+  --accent: #ff4081;
+  --accent-hover: #ff6b9d;
+  --accent-light: rgba(255, 64, 129, 0.08);
+  --accent-glow: rgba(255, 64, 129, 0.2);
+  --accent-gradient: linear-gradient(135deg, #ff4081 0%, #ff6b9d 50%, #ffa4c0 100%);
+
+  /* Secondary Accent - Tropical Warmth */
+  --secondary: #ff9966;
+  --secondary-light: rgba(255, 153, 102, 0.12);
 
   /* Surface Colors */
-  --card: #171717;
-  --card-hover: #1f1f1f;
-  --border: #2a2a2a;
-  --border-subtle: #1f1f1f;
-  --border-focus: #404040;
+  --card: #ffffff;
+  --card-hover: #f5f5f5;
+  --border: #e0e0e0;
+  --border-subtle: #f0f0f0;
+  --border-focus: #ff4081;
 
   /* Semantic Colors */
   --success: #10b981;
@@ -28,11 +33,12 @@
   --error: #ef4444;
   --error-bg: rgba(239, 68, 68, 0.1);
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 20px var(--accent-glow);
+  /* Shadows - Softer, Modern */
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.08);
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 4px 20px var(--accent-glow);
+  --shadow-colored: 0 8px 24px rgba(255, 64, 129, 0.15);
 
   /* Spacing Scale */
   --space-xs: 4px;
@@ -135,9 +141,9 @@ input, select, button, textarea {
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(15, 15, 15, 0.85);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -145,8 +151,8 @@ input, select, button, textarea {
   gap: 8px;
   padding: var(--space-sm) var(--space-md);
   padding-bottom: calc(var(--space-sm) + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border);
-  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
+  border-top: 1px solid var(--border-subtle);
+  box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.04);
   z-index: 100;
 }
 
@@ -195,7 +201,7 @@ input, select, button, textarea {
 /* Cards */
 .card {
   background: var(--card);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: var(--space-lg);
   transition: all var(--transition-slow);
@@ -203,14 +209,21 @@ input, select, button, textarea {
 }
 
 .card:hover {
-  border-color: var(--border-focus);
+  border-color: var(--border);
   box-shadow: var(--shadow);
   transform: translateY(-2px);
 }
 
+/* Hero gradient card */
+.card-hero {
+  background: var(--accent-gradient);
+  color: white;
+  border: none;
+}
+
 /* Buttons */
 .btn {
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: white;
   border: none;
   padding: var(--space-md) var(--space-xl);
@@ -225,8 +238,7 @@ input, select, button, textarea {
 }
 
 .btn:hover:not(:disabled) {
-  background: var(--accent-hover);
-  box-shadow: var(--shadow), var(--shadow-glow);
+  box-shadow: var(--shadow-colored);
   transform: translateY(-2px);
 }
 
@@ -241,16 +253,17 @@ input, select, button, textarea {
 }
 
 .btn.secondary {
-  background: var(--card);
+  background: var(--bg-subtle);
   color: var(--fg);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   box-shadow: none;
 }
 
 .btn.secondary:hover:not(:disabled) {
   background: var(--card-hover);
-  border-color: var(--border-focus);
+  border-color: var(--accent);
   box-shadow: var(--shadow-sm);
+  color: var(--accent);
 }
 
 /* Form Fields */
@@ -269,7 +282,7 @@ input, select, button, textarea {
 input, select, textarea {
   background: var(--bg-subtle);
   color: var(--fg);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-md) var(--space-lg);
   transition: all var(--transition);
@@ -278,8 +291,8 @@ input, select, textarea {
 
 input:focus, select:focus, textarea:focus {
   border-color: var(--accent);
-  background: var(--card);
-  box-shadow: 0 0 0 3px var(--accent-light);
+  background: var(--bg-subtle);
+  box-shadow: 0 0 0 4px var(--accent-light);
 }
 
 input::placeholder, textarea::placeholder {
@@ -294,7 +307,7 @@ textarea {
 select {
   cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a1a1a1' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666666' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right var(--space-md) center;
   padding-right: calc(var(--space-xl) + 12px);
@@ -437,10 +450,10 @@ html {
 }
 
 .admin-tabs button.active {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-gradient);
+  border-color: transparent;
   color: #fff;
-  box-shadow: 0 0 12px var(--accent-glow);
+  box-shadow: var(--shadow-colored);
 }
 
 .admin-panel {
@@ -556,13 +569,13 @@ html {
   gap: var(--space-md);
   padding: var(--space-lg);
   background: var(--bg-subtle);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-subtle);
   text-decoration: none;
   transition: background var(--transition);
 }
 
 .chat-header:hover {
-  background: var(--card-hover);
+  background: var(--bg);
 }
 
 .chat-avatar {
@@ -739,14 +752,14 @@ html {
 }
 
 .chat-bubble.me {
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: white;
   border-bottom-right-radius: var(--space-xs);
   box-shadow: var(--shadow-sm);
 }
 
 .chat-bubble.me.man {
-  background: #4a9eff;
+  background: linear-gradient(135deg, #5B86E5 0%, #36D1DC 100%);
 }
 
 .chat-bubble.me.last {
@@ -807,7 +820,7 @@ html {
   gap: var(--space-sm);
   padding: var(--space-lg);
   background: var(--bg-subtle);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .chat-input {
@@ -1941,4 +1954,205 @@ html {
 
 .report-category-label {
   font-weight: 500;
+}
+
+/* Modern Dating App Enhancements */
+
+/* Gradient backgrounds for special sections */
+.hero-gradient {
+  background: linear-gradient(135deg, #ff4081 0%, #ff6b9d 50%, #ffa4c0 100%);
+  color: white;
+}
+
+.tropical-gradient {
+  background: linear-gradient(135deg, #ff9966 0%, #ffcc99 100%);
+  color: white;
+}
+
+/* Profile photo styling with soft shadows */
+.profile-photo {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  border: 3px solid white;
+}
+
+/* Match badge - romantic theme */
+.match-badge {
+  background: linear-gradient(135deg, #ff4081, #ff6b9d);
+  color: white;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-colored);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Premium badge */
+.premium-badge {
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  color: #1a1a1a;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-shadow: 0 2px 12px rgba(255, 215, 0, 0.3);
+}
+
+/* Swipe card enhancements */
+.swipe-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.swipe-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 200px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Floating hearts animation for matches */
+@keyframes floatHeart {
+  0% {
+    transform: translateY(0) scale(0);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100px) scale(1);
+    opacity: 0;
+  }
+}
+
+.floating-heart {
+  animation: floatHeart 2s ease-out;
+}
+
+/* Modern pill badges with gradients */
+.pill.premium {
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  border: none;
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.pill.verified {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border: none;
+  color: white;
+  font-weight: 600;
+}
+
+.pill.online {
+  background: #10b981;
+  border: none;
+  color: white;
+}
+
+/* Beautiful glassmorphism effect */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* Improved hover states for profile cards */
+.profile-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.profile-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Heart icon styling */
+.heart-icon {
+  color: var(--accent);
+  font-size: 1.2rem;
+}
+
+.heart-filled {
+  animation: heartBeat 0.3s ease-in-out;
+}
+
+@keyframes heartBeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+}
+
+/* Modern loading spinner with gradient */
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Success celebrations */
+.celebration-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 64, 129, 0.9), rgba(255, 107, 157, 0.9));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.celebration-content {
+  text-align: center;
+  color: white;
+  animation: scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes scaleIn {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Romantic rose gold accent for special elements */
+.rose-gold {
+  background: linear-gradient(135deg, #E6B8A2, #D4A5A5);
+  color: white;
+}
+
+/* Soft pink accent for women's profiles */
+.feminine-accent {
+  background: linear-gradient(135deg, #FFB6C1, #FFC0CB);
+  color: #1a1a1a;
+}
+
+/* Cool blue accent for men's profiles */
+.masculine-accent {
+  background: linear-gradient(135deg, #5B86E5, #36D1DC);
+  color: white;
 }
